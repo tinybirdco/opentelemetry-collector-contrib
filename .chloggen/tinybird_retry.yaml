@@ -1,0 +1,4 @@
+change_type: enhancement
+component: tinybirdexporter
+note: Add retry handling for 5xx and rate-limited responses using Retry-After and X-RateLimit-Reset headers
+issues: []
