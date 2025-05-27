@@ -1,0 +1,12 @@
+type: tinybird
+
+status:
+  class: exporter
+  stability:
+    alpha: [logs]
+  distributions: [contrib]
+  codeowners:
+    active: []
+
+tests:
+  skip_lifecycle: true
