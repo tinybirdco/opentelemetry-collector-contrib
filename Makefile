@@ -670,3 +670,40 @@ checks:
 	$(MAKE) -j4 generate
 	$(MAKE) multimod-verify
 	git diff --exit-code || (echo 'Some files need committing' && git status && exit 1)
+
+.PHONY: build-binaries
+build-binaries:
+	$(MAKE) otelcontribcollite GOOS=linux GOARCH=amd64 GO_BUILD_LDFLAGS='"-s -w"'
+	$(MAKE) otelcontribcollite GOOS=linux GOARCH=arm64 GO_BUILD_LDFLAGS='"-s -w"'
+	$(MAKE) otelcontribcollite GOOS=darwin GOARCH=amd64 GO_BUILD_LDFLAGS='"-s -w"'
+	$(MAKE) otelcontribcollite GOOS=darwin GOARCH=arm64 GO_BUILD_LDFLAGS='"-s -w"'
+
+DOCKER_IMAGE_NAME ?= tinybirdco/opentelemetry-collector-contrib
+RELEASE_TAG ?= latest
+
+.PHONY: build-docker
+build-docker:
+	docker buildx build --platform linux/amd64,linux/arm64 -t $(DOCKER_IMAGE_NAME):v$(RELEASE_TAG) -f distribution/Dockerfile . --push
+
+.PHONY: github-release
+github-release:
+	@echo "Cleaning up old compressed files in bin/ ..."
+	@rm -f bin/*.tar.gz
+	@echo "Compressing binaries in bin/ ..."
+	@cd bin; \
+	for f in otelcontribcol_*; do \
+	    tar -czf "$$f.tar.gz" "$$f"; \
+	done
+	@echo "Creating GitHub release $(RELEASE_TAG) (if it doesn't exist) ..."
+	gh release create "v$(RELEASE_TAG)" --title "v$(RELEASE_TAG)" --notes "Release v$(RELEASE_TAG)" || true
+	@echo "Uploading assets to release $(RELEASE_TAG) ..."
+	gh release upload "v$(RELEASE_TAG)" bin/*.tar.gz --clobber
+
+# Build all binaries, the multi-arch Docker image, and publish the GitHub release.
+# Usage:
+#   make build-and-release [DOCKER_IMAGE_NAME=yourdockeruser/otelcontribcol] [RELEASE_TAG=v1.0.0]
+.PHONY: build-and-release
+build-and-release:
+	$(MAKE) build-binaries RELEASE_TAG=$(RELEASE_TAG)
+	$(MAKE) build-docker DOCKER_IMAGE_NAME=$(DOCKER_IMAGE_NAME) RELEASE_TAG=$(RELEASE_TAG)
+	$(MAKE) github-release RELEASE_TAG=$(RELEASE_TAG)
