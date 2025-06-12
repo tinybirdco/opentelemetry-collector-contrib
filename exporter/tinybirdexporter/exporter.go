@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"runtime"
+	"strconv"
 	"time"
 
 	"go.uber.org/zap"
@@ -325,11 +326,27 @@ func (e *tinybirdExporter) export(ctx context.Context, dataType string, dataSour
 	}
 
 	// Check if retryable
-	if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode == http.StatusServiceUnavailable {
-		if retryAfter := resp.Header.Get(headerRetryAfter); retryAfter != "" {
-			return exporterhelper.NewThrottleRetry(fmt.Errorf("request throttled, retry after %s: %s", retryAfter, string(body)), 0)
+	isThrottleError := resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode == http.StatusServiceUnavailable
+	if isThrottleError {
+		formattedErr := fmt.Errorf("request throttled")
+
+		// Use Values to check if the header is present, and if present even if it is empty return ThrottleRetry.
+		values := resp.Header.Values(headerRetryAfter)
+		if len(values) == 0 {
+			return formattedErr
 		}
-		return exporterhelper.NewThrottleRetry(fmt.Errorf("request throttled: %s", string(body)), 0)
+		// The value of Retry-After field can be either an HTTP-date or a number of
+		// seconds to delay after the response is received. See https://datatracker.ietf.org/doc/html/rfc7231#section-7.1.3
+		//
+		// Retry-After = HTTP-date / delay-seconds
+		//
+		// First try to parse delay-seconds, since that is what the receiver will send.
+		if seconds, err := strconv.Atoi(values[0]); err == nil {
+			return exporterhelper.NewThrottleRetry(formattedErr, time.Duration(seconds)*time.Second)
+		}
+		if date, err := time.Parse(time.RFC1123, values[0]); err == nil {
+			return exporterhelper.NewThrottleRetry(formattedErr, time.Until(date))
+		}
 	}
 
 	return consumererror.NewPermanent(fmt.Errorf("request failed with status %d: %s", resp.StatusCode, string(body)))

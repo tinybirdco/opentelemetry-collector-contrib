@@ -209,10 +209,6 @@ func TestExportErrorHandling(t *testing.T) {
 			}))
 			defer server.Close()
 
-			// Wait for server to be ready
-			_, err := http.Get(server.URL)
-			require.NoError(t, err)
-
 			config := &Config{
 				Endpoint:          server.URL,
 				Token:             "test-token",
