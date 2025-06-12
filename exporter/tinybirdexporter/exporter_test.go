@@ -30,32 +30,32 @@ func TestNewExporter(t *testing.T) {
 		{
 			name: "valid config",
 			config: &Config{
-				Endpoint:          "http://localhost:8080",
-				Token:             "test-token",
-				MetricsDataSource: "metrics_test",
-				TracesDataSource:  "traces_test",
-				LogsDatasource:    "logs_test",
+				Endpoint: "http://localhost:8080",
+				Token:    "test-token",
+				Metrics:  SignalConfig{Datasource: "metrics_test"},
+				Traces:   SignalConfig{Datasource: "traces_test"},
+				Logs:     SignalConfig{Datasource: "logs_test"},
 			},
 			wantErr: false,
 		},
 		{
 			name: "invalid endpoint",
 			config: &Config{
-				Endpoint:          "invalid-url",
-				Token:             "test-token",
-				MetricsDataSource: "metrics_test",
-				TracesDataSource:  "traces_test",
-				LogsDatasource:    "logs_test",
+				Endpoint: "invalid-url",
+				Token:    "test-token",
+				Metrics:  SignalConfig{Datasource: "metrics_test"},
+				Traces:   SignalConfig{Datasource: "traces_test"},
+				Logs:     SignalConfig{Datasource: "logs_test"},
 			},
 			wantErr: true,
 		},
 		{
 			name: "missing token",
 			config: &Config{
-				Endpoint:          "http://localhost:8080",
-				MetricsDataSource: "metrics_test",
-				TracesDataSource:  "traces_test",
-				LogsDatasource:    "logs_test",
+				Endpoint: "http://localhost:8080",
+				Metrics:  SignalConfig{Datasource: "metrics_test"},
+				Traces:   SignalConfig{Datasource: "traces_test"},
+				Logs:     SignalConfig{Datasource: "logs_test"},
 			},
 			wantErr: true,
 		},
@@ -95,11 +95,11 @@ func TestExportTraces(t *testing.T) {
 	defer server.Close()
 
 	config := &Config{
-		Endpoint:          server.URL,
-		Token:             "test-token",
-		MetricsDataSource: "metrics_test",
-		TracesDataSource:  "traces_test",
-		LogsDatasource:    "logs_test",
+		Endpoint: server.URL,
+		Token:    "test-token",
+		Metrics:  SignalConfig{Datasource: "metrics_test"},
+		Traces:   SignalConfig{Datasource: "traces_test"},
+		Logs:     SignalConfig{Datasource: "logs_test"},
 	}
 
 	exp, err := newExporter(config, exportertest.NewNopSettings(metadata.Type))
@@ -122,11 +122,11 @@ func TestExportMetrics(t *testing.T) {
 	defer server.Close()
 
 	config := &Config{
-		Endpoint:          server.URL,
-		Token:             "test-token",
-		MetricsDataSource: "metrics_test",
-		TracesDataSource:  "traces_test",
-		LogsDatasource:    "logs_test",
+		Endpoint: server.URL,
+		Token:    "test-token",
+		Metrics:  SignalConfig{Datasource: "metrics_test"},
+		Traces:   SignalConfig{Datasource: "traces_test"},
+		Logs:     SignalConfig{Datasource: "logs_test"},
 	}
 
 	exp, err := newExporter(config, exportertest.NewNopSettings(metadata.Type))
@@ -149,11 +149,11 @@ func TestExportLogs(t *testing.T) {
 	defer server.Close()
 
 	config := &Config{
-		Endpoint:          server.URL,
-		Token:             "test-token",
-		MetricsDataSource: "metrics_test",
-		TracesDataSource:  "traces_test",
-		LogsDatasource:    "logs_test",
+		Endpoint: server.URL,
+		Token:    "test-token",
+		Metrics:  SignalConfig{Datasource: "metrics_test"},
+		Traces:   SignalConfig{Datasource: "traces_test"},
+		Logs:     SignalConfig{Datasource: "logs_test"},
 	}
 
 	exp, err := newExporter(config, exportertest.NewNopSettings(metadata.Type))
@@ -210,11 +210,11 @@ func TestExportErrorHandling(t *testing.T) {
 			defer server.Close()
 
 			config := &Config{
-				Endpoint:          server.URL,
-				Token:             "test-token",
-				MetricsDataSource: "metrics_test",
-				TracesDataSource:  "traces_test",
-				LogsDatasource:    "logs_test",
+				Endpoint: server.URL,
+				Token:    "test-token",
+				Metrics:  SignalConfig{Datasource: "metrics_test"},
+				Traces:   SignalConfig{Datasource: "traces_test"},
+				Logs:     SignalConfig{Datasource: "logs_test"},
 			}
 
 			exp, err := newExporter(config, exportertest.NewNopSettings(metadata.Type))

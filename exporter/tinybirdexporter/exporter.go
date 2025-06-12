@@ -179,7 +179,7 @@ func (e *tinybirdExporter) pushTraces(ctx context.Context, td ptrace.Traces) err
 		}
 	}
 
-	return e.export(ctx, "traces", e.config.TracesDataSource, events)
+	return e.export(ctx, "traces", e.config.Traces.Datasource, events)
 }
 
 func (e *tinybirdExporter) pushMetrics(ctx context.Context, md pmetric.Metrics) error {
@@ -250,7 +250,7 @@ func (e *tinybirdExporter) pushMetrics(ctx context.Context, md pmetric.Metrics) 
 		}
 	}
 
-	return e.export(ctx, "metrics", e.config.MetricsDataSource, events)
+	return e.export(ctx, "metrics", e.config.Metrics.Datasource, events)
 }
 
 func (e *tinybirdExporter) pushLogs(ctx context.Context, ld plog.Logs) error {
@@ -281,7 +281,7 @@ func (e *tinybirdExporter) pushLogs(ctx context.Context, ld plog.Logs) error {
 		}
 	}
 
-	return e.export(ctx, "logs", e.config.LogsDatasource, events)
+	return e.export(ctx, "logs", e.config.Logs.Datasource, events)
 }
 
 func (e *tinybirdExporter) export(ctx context.Context, dataType string, dataSource string, events []Event) error {
@@ -304,7 +304,7 @@ func (e *tinybirdExporter) export(ctx context.Context, dataType string, dataSour
 
 	// Set headers
 	req.Header.Set("Content-Type", contentTypeNDJSON)
-	req.Header.Set("Authorization", "Bearer "+e.config.Token)
+	req.Header.Set("Authorization", "Bearer "+string(e.config.Token))
 	req.Header.Set("User-Agent", e.userAgent)
 
 	// Send request

@@ -10,6 +10,8 @@ import (
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configopaque"
+	"go.opentelemetry.io/collector/config/configretry"
+	"go.opentelemetry.io/collector/exporter/exporterhelper"
 )
 
 var datasourceRegex = regexp.MustCompile(`^[\w_]+$`)
@@ -29,6 +31,9 @@ func (cfg SignalConfig) Validate() error {
 
 // Config defines configuration for the Tinybird exporter.
 type Config struct {
+	RetryConfig configretry.BackOffConfig       `mapstructure:"retry_on_failure"`
+	QueueConfig exporterhelper.QueueBatchConfig `mapstructure:"sending_queue"`
+
 	Endpoint string              `mapstructure:"endpoint"`
 	Token    configopaque.String `mapstructure:"token"`
 	Metrics  SignalConfig        `mapstructure:"metrics"`
@@ -40,6 +45,9 @@ var _ component.Config = (*Config)(nil)
 
 // Validate checks if the exporter configuration is valid
 func (cfg *Config) Validate() error {
+	if cfg.Endpoint == "" {
+		return errMissingEndpoint
+	}
 	if cfg.Token == "" {
 		return errMissingToken
 	}
