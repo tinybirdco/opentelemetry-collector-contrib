@@ -13,6 +13,7 @@ tinybird/full:
   metrics_datasource: "metrics"
   traces_datasource: "traces"
   logs_datasource: "logs"
+  wait: true
 
 tinybird/missing_token:
   endpoint: "https://api.tinybird.co"

@@ -38,6 +38,7 @@ func TestNewExporter(t *testing.T) {
 				MetricsDataSource: "metrics_test",
 				TracesDataSource:  "traces_test",
 				LogsDatasource:    "logs_test",
+				Wait:              true,
 			},
 			wantErr: false,
 		},
@@ -93,90 +94,204 @@ func TestNewExporter(t *testing.T) {
 }
 
 func TestExportTraces(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "POST", r.Method)
-		assert.Equal(t, "/v0/events", r.URL.Path)
-		assert.Equal(t, "name=traces_test", r.URL.RawQuery)
-		assert.Equal(t, "application/x-ndjson", r.Header.Get("Content-Type"))
-		assert.Equal(t, "Bearer test-token", r.Header.Get("Authorization"))
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer server.Close()
-
-	config := &Config{
-		ClientConfig: confighttp.ClientConfig{
-			Endpoint: server.URL,
+	tests := []struct {
+		name           string
+		wait           bool
+		expectedQuery  string
+		responseStatus int
+		wantErr        bool
+	}{
+		{
+			name:           "export without wait",
+			wait:           false,
+			expectedQuery:  "name=traces_test",
+			responseStatus: http.StatusOK,
+			wantErr:        false,
 		},
-		Token:             "test-token",
-		MetricsDataSource: "metrics_test",
-		TracesDataSource:  "traces_test",
-		LogsDatasource:    "logs_test",
+		{
+			name:           "export with wait",
+			wait:           true,
+			expectedQuery:  "name=traces_test&wait=true",
+			responseStatus: http.StatusOK,
+			wantErr:        false,
+		},
 	}
 
-	exp, err := newExporter(config, exportertest.NewNopSettings(metadata.Type))
-	require.NoError(t, err)
-	require.NoError(t, exp.start(context.Background(), componenttest.NewNopHost()))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, "POST", r.Method)
+				assert.Equal(t, "/v0/events", r.URL.Path)
+				assert.Equal(t, tt.expectedQuery, r.URL.RawQuery)
+				assert.Equal(t, "application/x-ndjson", r.Header.Get("Content-Type"))
+				assert.Equal(t, "Bearer test-token", r.Header.Get("Authorization"))
+				w.WriteHeader(tt.responseStatus)
+			}))
+			defer server.Close()
 
-	traces := ptrace.NewTraces()
-	require.NoError(t, exp.pushTraces(context.Background(), traces))
+			config := &Config{
+				ClientConfig: confighttp.ClientConfig{
+					Endpoint: server.URL,
+				},
+				Token:             "test-token",
+				MetricsDataSource: "metrics_test",
+				TracesDataSource:  "traces_test",
+				LogsDatasource:    "logs_test",
+				Wait:              tt.wait,
+			}
+
+			exp, err := newExporter(config, exportertest.NewNopSettings(metadata.Type))
+			require.NoError(t, err)
+			require.NoError(t, exp.start(context.Background(), componenttest.NewNopHost()))
+
+			traces := ptrace.NewTraces()
+			rs := traces.ResourceSpans().AppendEmpty()
+			ss := rs.ScopeSpans().AppendEmpty()
+			span := ss.Spans().AppendEmpty()
+			span.SetName("test-span")
+
+			err = exp.pushTraces(context.Background(), traces)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
 }
 
 func TestExportMetrics(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "POST", r.Method)
-		assert.Equal(t, "/v0/events", r.URL.Path)
-		assert.Equal(t, "name=metrics_test", r.URL.RawQuery)
-		assert.Equal(t, "application/x-ndjson", r.Header.Get("Content-Type"))
-		assert.Equal(t, "Bearer test-token", r.Header.Get("Authorization"))
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer server.Close()
-
-	config := &Config{
-		ClientConfig: confighttp.ClientConfig{
-			Endpoint: server.URL,
+	tests := []struct {
+		name           string
+		wait           bool
+		expectedQuery  string
+		responseStatus int
+		wantErr        bool
+	}{
+		{
+			name:           "export without wait",
+			wait:           false,
+			expectedQuery:  "name=metrics_test",
+			responseStatus: http.StatusOK,
+			wantErr:        false,
 		},
-		Token:             "test-token",
-		MetricsDataSource: "metrics_test",
-		TracesDataSource:  "traces_test",
-		LogsDatasource:    "logs_test",
+		{
+			name:           "export with wait",
+			wait:           true,
+			expectedQuery:  "name=metrics_test&wait=true",
+			responseStatus: http.StatusOK,
+			wantErr:        false,
+		},
 	}
 
-	exp, err := newExporter(config, exportertest.NewNopSettings(metadata.Type))
-	require.NoError(t, err)
-	require.NoError(t, exp.start(context.Background(), componenttest.NewNopHost()))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, "POST", r.Method)
+				assert.Equal(t, "/v0/events", r.URL.Path)
+				assert.Equal(t, tt.expectedQuery, r.URL.RawQuery)
+				assert.Equal(t, "application/x-ndjson", r.Header.Get("Content-Type"))
+				assert.Equal(t, "Bearer test-token", r.Header.Get("Authorization"))
+				w.WriteHeader(tt.responseStatus)
+			}))
+			defer server.Close()
 
-	metrics := pmetric.NewMetrics()
-	require.NoError(t, exp.pushMetrics(context.Background(), metrics))
+			config := &Config{
+				ClientConfig: confighttp.ClientConfig{
+					Endpoint: server.URL,
+				},
+				Token:             "test-token",
+				MetricsDataSource: "metrics_test",
+				TracesDataSource:  "traces_test",
+				LogsDatasource:    "logs_test",
+				Wait:              tt.wait,
+			}
+
+			exp, err := newExporter(config, exportertest.NewNopSettings(metadata.Type))
+			require.NoError(t, err)
+			require.NoError(t, exp.start(context.Background(), componenttest.NewNopHost()))
+
+			metrics := pmetric.NewMetrics()
+			rm := metrics.ResourceMetrics().AppendEmpty()
+			sm := rm.ScopeMetrics().AppendEmpty()
+			metric := sm.Metrics().AppendEmpty()
+			metric.SetName("test-metric")
+
+			err = exp.pushMetrics(context.Background(), metrics)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
 }
 
 func TestExportLogs(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "POST", r.Method)
-		assert.Equal(t, "/v0/events", r.URL.Path)
-		assert.Equal(t, "name=logs_test", r.URL.RawQuery)
-		assert.Equal(t, "application/x-ndjson", r.Header.Get("Content-Type"))
-		assert.Equal(t, "Bearer test-token", r.Header.Get("Authorization"))
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer server.Close()
-
-	config := &Config{
-		ClientConfig: confighttp.ClientConfig{
-			Endpoint: server.URL,
+	tests := []struct {
+		name           string
+		wait           bool
+		expectedQuery  string
+		responseStatus int
+		wantErr        bool
+	}{
+		{
+			name:           "export without wait",
+			wait:           false,
+			expectedQuery:  "name=logs_test",
+			responseStatus: http.StatusOK,
+			wantErr:        false,
 		},
-		Token:             "test-token",
-		MetricsDataSource: "metrics_test",
-		TracesDataSource:  "traces_test",
-		LogsDatasource:    "logs_test",
+		{
+			name:           "export with wait",
+			wait:           true,
+			expectedQuery:  "name=logs_test&wait=true",
+			responseStatus: http.StatusOK,
+			wantErr:        false,
+		},
 	}
 
-	exp, err := newExporter(config, exportertest.NewNopSettings(metadata.Type))
-	require.NoError(t, err)
-	require.NoError(t, exp.start(context.Background(), componenttest.NewNopHost()))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, "POST", r.Method)
+				assert.Equal(t, "/v0/events", r.URL.Path)
+				assert.Equal(t, tt.expectedQuery, r.URL.RawQuery)
+				assert.Equal(t, "application/x-ndjson", r.Header.Get("Content-Type"))
+				assert.Equal(t, "Bearer test-token", r.Header.Get("Authorization"))
+				w.WriteHeader(tt.responseStatus)
+			}))
+			defer server.Close()
 
-	logs := plog.NewLogs()
-	require.NoError(t, exp.pushLogs(context.Background(), logs))
+			config := &Config{
+				ClientConfig: confighttp.ClientConfig{
+					Endpoint: server.URL,
+				},
+				Token:             "test-token",
+				MetricsDataSource: "metrics_test",
+				TracesDataSource:  "traces_test",
+				LogsDatasource:    "logs_test",
+				Wait:              tt.wait,
+			}
+
+			exp, err := newExporter(config, exportertest.NewNopSettings(metadata.Type))
+			require.NoError(t, err)
+			require.NoError(t, exp.start(context.Background(), componenttest.NewNopHost()))
+
+			logs := plog.NewLogs()
+			rl := logs.ResourceLogs().AppendEmpty()
+			sl := rl.ScopeLogs().AppendEmpty()
+			log := sl.LogRecords().AppendEmpty()
+			log.Body().SetStr("test-log")
+
+			err = exp.pushLogs(context.Background(), logs)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
 }
 
 func TestExportErrorHandling(t *testing.T) {

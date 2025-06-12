@@ -71,6 +71,7 @@ func TestLoadConfig(t *testing.T) {
 				MetricsDataSource: "metrics",
 				TracesDataSource:  "traces",
 				LogsDatasource:    "logs",
+				Wait:              true,
 			},
 		},
 		{

@@ -27,6 +27,8 @@ type Config struct {
 	TracesDataSource string `mapstructure:"traces_datasource"`
 	// Logs datasource name.
 	LogsDatasource string `mapstructure:"logs_datasource"`
+	// Wait for data to be ingested before returning a response.
+	Wait bool `mapstructure:"wait"`
 }
 
 var _ component.Config = (*Config)(nil)

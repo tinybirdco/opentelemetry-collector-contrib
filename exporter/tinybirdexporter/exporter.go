@@ -296,11 +296,17 @@ func (e *tinybirdExporter) export(ctx context.Context, dataType string, dataSour
 		buf.WriteByte('\n')
 	}
 
-	// Create request
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, e.config.ClientConfig.Endpoint+"/v0/events?name="+dataSource, &buf)
+	// Create request and add query parameters
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, e.config.ClientConfig.Endpoint+"/v0/events", &buf)
 	if err != nil {
 		return consumererror.NewPermanent(err)
 	}
+	q := req.URL.Query()
+	q.Set("name", dataSource)
+	if e.config.Wait {
+		q.Set("wait", "true")
+	}
+	req.URL.RawQuery = q.Encode()
 
 	// Set headers
 	req.Header.Set("Content-Type", contentTypeNDJSON)
