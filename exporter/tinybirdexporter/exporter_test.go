@@ -15,6 +15,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/tinybirdexporter/internal/metadata"
 
 	"go.opentelemetry.io/collector/component/componenttest"
+	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/exporter/exportertest"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/collector/pdata/pmetric"
@@ -30,40 +31,48 @@ func TestNewExporter(t *testing.T) {
 		{
 			name: "valid config",
 			config: &Config{
-				Endpoint: "http://localhost:8080",
-				Token:    "test-token",
-				Metrics:  SignalConfig{Datasource: "metrics_test"},
-				Traces:   SignalConfig{Datasource: "traces_test"},
-				Logs:     SignalConfig{Datasource: "logs_test"},
+				ClientConfig: confighttp.ClientConfig{
+					Endpoint: "http://localhost:8080",
+				},
+				Token:   "test-token",
+				Metrics: SignalConfig{Datasource: "metrics_test"},
+				Traces:  SignalConfig{Datasource: "traces_test"},
+				Logs:    SignalConfig{Datasource: "logs_test"},
 			},
 			wantErr: false,
 		},
 		{
 			name: "invalid endpoint",
 			config: &Config{
-				Endpoint: "invalid-url",
-				Token:    "test-token",
-				Metrics:  SignalConfig{Datasource: "metrics_test"},
-				Traces:   SignalConfig{Datasource: "traces_test"},
-				Logs:     SignalConfig{Datasource: "logs_test"},
+				ClientConfig: confighttp.ClientConfig{
+					Endpoint: "invalid-url",
+				},
+				Token:   "test-token",
+				Metrics: SignalConfig{Datasource: "metrics_test"},
+				Traces:  SignalConfig{Datasource: "traces_test"},
+				Logs:    SignalConfig{Datasource: "logs_test"},
 			},
 			wantErr: true,
 		},
 		{
 			name: "missing token",
 			config: &Config{
-				Endpoint: "http://localhost:8080",
-				Metrics:  SignalConfig{Datasource: "metrics_test"},
-				Traces:   SignalConfig{Datasource: "traces_test"},
-				Logs:     SignalConfig{Datasource: "logs_test"},
+				ClientConfig: confighttp.ClientConfig{
+					Endpoint: "http://localhost:8080",
+				},
+				Metrics: SignalConfig{Datasource: "metrics_test"},
+				Traces:  SignalConfig{Datasource: "traces_test"},
+				Logs:    SignalConfig{Datasource: "logs_test"},
 			},
 			wantErr: true,
 		},
 		{
 			name: "missing datasource",
 			config: &Config{
-				Endpoint: "http://localhost:8080",
-				Token:    "test-token",
+				ClientConfig: confighttp.ClientConfig{
+					Endpoint: "http://localhost:8080",
+				},
+				Token: "test-token",
 			},
 			wantErr: true,
 		},
@@ -95,11 +104,13 @@ func TestExportTraces(t *testing.T) {
 	defer server.Close()
 
 	config := &Config{
-		Endpoint: server.URL,
-		Token:    "test-token",
-		Metrics:  SignalConfig{Datasource: "metrics_test"},
-		Traces:   SignalConfig{Datasource: "traces_test"},
-		Logs:     SignalConfig{Datasource: "logs_test"},
+		ClientConfig: confighttp.ClientConfig{
+			Endpoint: server.URL,
+		},
+		Token:   "test-token",
+		Metrics: SignalConfig{Datasource: "metrics_test"},
+		Traces:  SignalConfig{Datasource: "traces_test"},
+		Logs:    SignalConfig{Datasource: "logs_test"},
 	}
 
 	exp, err := newExporter(config, exportertest.NewNopSettings(metadata.Type))
@@ -122,11 +133,13 @@ func TestExportMetrics(t *testing.T) {
 	defer server.Close()
 
 	config := &Config{
-		Endpoint: server.URL,
-		Token:    "test-token",
-		Metrics:  SignalConfig{Datasource: "metrics_test"},
-		Traces:   SignalConfig{Datasource: "traces_test"},
-		Logs:     SignalConfig{Datasource: "logs_test"},
+		ClientConfig: confighttp.ClientConfig{
+			Endpoint: server.URL,
+		},
+		Token:   "test-token",
+		Metrics: SignalConfig{Datasource: "metrics_test"},
+		Traces:  SignalConfig{Datasource: "traces_test"},
+		Logs:    SignalConfig{Datasource: "logs_test"},
 	}
 
 	exp, err := newExporter(config, exportertest.NewNopSettings(metadata.Type))
@@ -149,11 +162,13 @@ func TestExportLogs(t *testing.T) {
 	defer server.Close()
 
 	config := &Config{
-		Endpoint: server.URL,
-		Token:    "test-token",
-		Metrics:  SignalConfig{Datasource: "metrics_test"},
-		Traces:   SignalConfig{Datasource: "traces_test"},
-		Logs:     SignalConfig{Datasource: "logs_test"},
+		ClientConfig: confighttp.ClientConfig{
+			Endpoint: server.URL,
+		},
+		Token:   "test-token",
+		Metrics: SignalConfig{Datasource: "metrics_test"},
+		Traces:  SignalConfig{Datasource: "traces_test"},
+		Logs:    SignalConfig{Datasource: "logs_test"},
 	}
 
 	exp, err := newExporter(config, exportertest.NewNopSettings(metadata.Type))
@@ -210,11 +225,13 @@ func TestExportErrorHandling(t *testing.T) {
 			defer server.Close()
 
 			config := &Config{
-				Endpoint: server.URL,
-				Token:    "test-token",
-				Metrics:  SignalConfig{Datasource: "metrics_test"},
-				Traces:   SignalConfig{Datasource: "traces_test"},
-				Logs:     SignalConfig{Datasource: "logs_test"},
+				ClientConfig: confighttp.ClientConfig{
+					Endpoint: server.URL,
+				},
+				Token:   "test-token",
+				Metrics: SignalConfig{Datasource: "metrics_test"},
+				Traces:  SignalConfig{Datasource: "traces_test"},
+				Logs:    SignalConfig{Datasource: "logs_test"},
 			}
 
 			exp, err := newExporter(config, exportertest.NewNopSettings(metadata.Type))

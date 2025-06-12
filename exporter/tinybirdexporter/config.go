@@ -9,6 +9,7 @@ import (
 	"regexp"
 
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configopaque"
 	"go.opentelemetry.io/collector/config/configretry"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
@@ -31,38 +32,36 @@ func (cfg SignalConfig) Validate() error {
 
 // Config defines configuration for the Tinybird exporter.
 type Config struct {
-	RetryConfig configretry.BackOffConfig       `mapstructure:"retry_on_failure"`
-	QueueConfig exporterhelper.QueueBatchConfig `mapstructure:"sending_queue"`
+	ClientConfig confighttp.ClientConfig         `mapstructure:",squash"` // squash ensures fields are correctly decoded in embedded struct.
+	RetryConfig  configretry.BackOffConfig       `mapstructure:"retry_on_failure"`
+	QueueConfig  exporterhelper.QueueBatchConfig `mapstructure:"sending_queue"`
 
-	Endpoint string              `mapstructure:"endpoint"`
-	Token    configopaque.String `mapstructure:"token"`
-	Metrics  SignalConfig        `mapstructure:"metrics"`
-	Traces   SignalConfig        `mapstructure:"traces"`
-	Logs     SignalConfig        `mapstructure:"logs"`
+	// Tinybird API token.
+	Token   configopaque.String `mapstructure:"token"`
+	Metrics SignalConfig        `mapstructure:"metrics"`
+	Traces  SignalConfig        `mapstructure:"traces"`
+	Logs    SignalConfig        `mapstructure:"logs"`
 }
 
 var _ component.Config = (*Config)(nil)
 
 // Validate checks if the exporter configuration is valid
 func (cfg *Config) Validate() error {
-	if cfg.Endpoint == "" {
+	if cfg.ClientConfig.Endpoint == "" {
 		return errMissingEndpoint
 	}
-	if cfg.Token == "" {
-		return errMissingToken
-	}
-	if cfg.Endpoint == "" {
-		return errMissingEndpoint
-	}
-	u, err := url.Parse(cfg.Endpoint)
+	u, err := url.Parse(cfg.ClientConfig.Endpoint)
 	if err != nil {
 		return fmt.Errorf("endpoint must be a valid URL: %w", err)
 	}
 	if u.Scheme != "http" && u.Scheme != "https" {
-		return fmt.Errorf("endpoint must have http or https scheme: %q", cfg.Endpoint)
+		return fmt.Errorf("endpoint must have http or https scheme: %s", cfg.ClientConfig.Endpoint)
 	}
 	if u.Host == "" {
-		return fmt.Errorf("endpoint must have a host: %q", cfg.Endpoint)
+		return fmt.Errorf("endpoint must have a host: %s", cfg.ClientConfig.Endpoint)
+	}
+	if cfg.Token == "" {
+		return errMissingToken
 	}
 	return nil
 }
