@@ -15,6 +15,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/tinybirdexporter/internal/metadata"
 
 	"go.opentelemetry.io/collector/component/componenttest"
+	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/exporter/exportertest"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/collector/pdata/pmetric"
@@ -30,7 +31,9 @@ func TestNewExporter(t *testing.T) {
 		{
 			name: "valid config",
 			config: &Config{
-				Endpoint:          "http://localhost:8080",
+				ClientConfig: confighttp.ClientConfig{
+					Endpoint: "http://localhost:8080",
+				},
 				Token:             "test-token",
 				MetricsDataSource: "metrics_test",
 				TracesDataSource:  "traces_test",
@@ -41,7 +44,9 @@ func TestNewExporter(t *testing.T) {
 		{
 			name: "invalid endpoint",
 			config: &Config{
-				Endpoint:          "invalid-url",
+				ClientConfig: confighttp.ClientConfig{
+					Endpoint: "invalid-url",
+				},
 				Token:             "test-token",
 				MetricsDataSource: "metrics_test",
 				TracesDataSource:  "traces_test",
@@ -52,7 +57,9 @@ func TestNewExporter(t *testing.T) {
 		{
 			name: "missing token",
 			config: &Config{
-				Endpoint:          "http://localhost:8080",
+				ClientConfig: confighttp.ClientConfig{
+					Endpoint: "http://localhost:8080",
+				},
 				MetricsDataSource: "metrics_test",
 				TracesDataSource:  "traces_test",
 				LogsDatasource:    "logs_test",
@@ -62,8 +69,10 @@ func TestNewExporter(t *testing.T) {
 		{
 			name: "missing datasource",
 			config: &Config{
-				Endpoint: "http://localhost:8080",
-				Token:    "test-token",
+				ClientConfig: confighttp.ClientConfig{
+					Endpoint: "http://localhost:8080",
+				},
+				Token: "test-token",
 			},
 			wantErr: true,
 		},
@@ -95,7 +104,9 @@ func TestExportTraces(t *testing.T) {
 	defer server.Close()
 
 	config := &Config{
-		Endpoint:          server.URL,
+		ClientConfig: confighttp.ClientConfig{
+			Endpoint: server.URL,
+		},
 		Token:             "test-token",
 		MetricsDataSource: "metrics_test",
 		TracesDataSource:  "traces_test",
@@ -122,7 +133,9 @@ func TestExportMetrics(t *testing.T) {
 	defer server.Close()
 
 	config := &Config{
-		Endpoint:          server.URL,
+		ClientConfig: confighttp.ClientConfig{
+			Endpoint: server.URL,
+		},
 		Token:             "test-token",
 		MetricsDataSource: "metrics_test",
 		TracesDataSource:  "traces_test",
@@ -149,7 +162,9 @@ func TestExportLogs(t *testing.T) {
 	defer server.Close()
 
 	config := &Config{
-		Endpoint:          server.URL,
+		ClientConfig: confighttp.ClientConfig{
+			Endpoint: server.URL,
+		},
 		Token:             "test-token",
 		MetricsDataSource: "metrics_test",
 		TracesDataSource:  "traces_test",
@@ -210,7 +225,9 @@ func TestExportErrorHandling(t *testing.T) {
 			defer server.Close()
 
 			config := &Config{
-				Endpoint:          server.URL,
+				ClientConfig: confighttp.ClientConfig{
+					Endpoint: server.URL,
+				},
 				Token:             "test-token",
 				MetricsDataSource: "metrics_test",
 				TracesDataSource:  "traces_test",

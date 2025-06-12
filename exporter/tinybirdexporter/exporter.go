@@ -297,7 +297,7 @@ func (e *tinybirdExporter) export(ctx context.Context, dataType string, dataSour
 	}
 
 	// Create request
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, e.config.Endpoint+"/v0/events?name="+dataSource, &buf)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, e.config.ClientConfig.Endpoint+"/v0/events?name="+dataSource, &buf)
 	if err != nil {
 		return consumererror.NewPermanent(err)
 	}

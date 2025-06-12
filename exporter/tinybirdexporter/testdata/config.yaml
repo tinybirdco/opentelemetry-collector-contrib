@@ -3,11 +3,12 @@ tinybird:
   token: "test-token"
 
 tinybird/full:
+  endpoint: "https://api.tinybird.co"
+  compression: "zstd"
   retry_on_failure:
     enabled: false
   sending_queue:
     enabled: false
-  endpoint: "https://api.tinybird.co"
   token: "test-token"
   metrics_datasource: "metrics"
   traces_datasource: "traces"

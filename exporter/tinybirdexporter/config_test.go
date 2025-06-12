@@ -10,6 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configcompression"
+	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configretry"
 	"go.opentelemetry.io/collector/confmap/confmaptest"
 	"go.opentelemetry.io/collector/confmap/xconfmap"
@@ -18,12 +20,6 @@ import (
 
 func TestLoadConfig(t *testing.T) {
 	t.Parallel()
-
-	disabledQueueConfig := exporterhelper.NewDefaultQueueConfig()
-	disabledQueueConfig.Enabled = false
-
-	disabledRetryConfig := configretry.NewDefaultBackOffConfig()
-	disabledRetryConfig.Enabled = false
 
 	cm, err := confmaptest.LoadConf(filepath.Join("testdata", "config.yaml"))
 	require.NoError(t, err)
@@ -38,9 +34,13 @@ func TestLoadConfig(t *testing.T) {
 			id:      component.NewIDWithName(component.MustNewType(typeStr), ""),
 			subName: "tinybird",
 			expected: &Config{
+				ClientConfig: func() confighttp.ClientConfig {
+					cfg := createDefaultConfig().(*Config).ClientConfig
+					cfg.Endpoint = "https://api.tinybird.co"
+					return cfg
+				}(),
 				RetryConfig:       configretry.NewDefaultBackOffConfig(),
 				QueueConfig:       exporterhelper.NewDefaultQueueConfig(),
-				Endpoint:          "https://api.tinybird.co",
 				Token:             "test-token",
 				MetricsDataSource: "metrics",
 				TracesDataSource:  "traces",
@@ -51,9 +51,22 @@ func TestLoadConfig(t *testing.T) {
 			id:      component.NewIDWithName(component.MustNewType(typeStr), "full"),
 			subName: "tinybird/full",
 			expected: &Config{
-				RetryConfig:       disabledRetryConfig,
-				QueueConfig:       disabledQueueConfig,
-				Endpoint:          "https://api.tinybird.co",
+				ClientConfig: func() confighttp.ClientConfig {
+					cfg := createDefaultConfig().(*Config).ClientConfig
+					cfg.Endpoint = "https://api.tinybird.co"
+					cfg.Compression = configcompression.TypeZstd
+					return cfg
+				}(),
+				RetryConfig: func() configretry.BackOffConfig {
+					cfg := createDefaultConfig().(*Config).RetryConfig
+					cfg.Enabled = false
+					return cfg
+				}(),
+				QueueConfig: func() exporterhelper.QueueBatchConfig {
+					cfg := createDefaultConfig().(*Config).QueueConfig
+					cfg.Enabled = false
+					return cfg
+				}(),
 				Token:             "test-token",
 				MetricsDataSource: "metrics",
 				TracesDataSource:  "traces",
