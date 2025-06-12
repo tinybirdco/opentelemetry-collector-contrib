@@ -13,6 +13,7 @@ tinybird/full:
   metrics::datasource: "metrics"
   traces::datasource: "traces"
   logs::datasource: "logs"
+  wait: true
 
 tinybird/invalid_datasource:
   endpoint: "https://api.tinybird.co"

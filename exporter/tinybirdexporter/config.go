@@ -41,6 +41,8 @@ type Config struct {
 	Metrics SignalConfig        `mapstructure:"metrics"`
 	Traces  SignalConfig        `mapstructure:"traces"`
 	Logs    SignalConfig        `mapstructure:"logs"`
+	// Wait for data to be ingested before returning a response.
+	Wait bool `mapstructure:"wait"`
 }
 
 var _ component.Config = (*Config)(nil)

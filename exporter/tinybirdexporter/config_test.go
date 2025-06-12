@@ -71,6 +71,7 @@ func TestLoadConfig(t *testing.T) {
 				Metrics: SignalConfig{Datasource: "metrics"},
 				Traces:  SignalConfig{Datasource: "traces"},
 				Logs:    SignalConfig{Datasource: "logs"},
+				Wait:    true,
 			},
 		},
 		{

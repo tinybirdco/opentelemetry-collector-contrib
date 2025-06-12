@@ -50,6 +50,7 @@ func createDefaultConfig() component.Config {
 		Metrics:      SignalConfig{Datasource: "metrics"},
 		Traces:       SignalConfig{Datasource: "traces"},
 		Logs:         SignalConfig{Datasource: "logs"},
+		Wait:         false,
 	}
 }
 
