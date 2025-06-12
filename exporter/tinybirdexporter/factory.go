@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configretry"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
@@ -32,6 +33,8 @@ func NewFactory() exporter.Factory {
 
 func createDefaultConfig() component.Config {
 	return &Config{
+		RetryConfig:       configretry.NewDefaultBackOffConfig(),
+		QueueConfig:       exporterhelper.NewDefaultQueueConfig(),
 		Endpoint:          "",
 		Token:             "",
 		MetricsDataSource: "metrics",
@@ -45,7 +48,8 @@ func createTracesExporter(
 	set exporter.Settings,
 	cfg component.Config,
 ) (exporter.Traces, error) {
-	exp, err := newExporter(cfg, set)
+	oCfg := cfg.(*Config)
+	exp, err := newExporter(oCfg, set)
 	if err != nil {
 		return nil, err
 	}
@@ -56,6 +60,10 @@ func createTracesExporter(
 		exp.pushTraces,
 		exporterhelper.WithStart(exp.start),
 		exporterhelper.WithCapabilities(consumer.Capabilities{MutatesData: false}),
+		// explicitly disable since we rely on http.Client timeout logic.
+		exporterhelper.WithTimeout(exporterhelper.TimeoutConfig{Timeout: 0}),
+		exporterhelper.WithRetry(oCfg.RetryConfig),
+		exporterhelper.WithQueue(oCfg.QueueConfig),
 	)
 }
 
@@ -64,7 +72,9 @@ func createMetricsExporter(
 	set exporter.Settings,
 	cfg component.Config,
 ) (exporter.Metrics, error) {
-	exp, err := newExporter(cfg, set)
+	oCfg := cfg.(*Config)
+
+	exp, err := newExporter(oCfg, set)
 	if err != nil {
 		return nil, err
 	}
@@ -75,6 +85,10 @@ func createMetricsExporter(
 		exp.pushMetrics,
 		exporterhelper.WithStart(exp.start),
 		exporterhelper.WithCapabilities(consumer.Capabilities{MutatesData: false}),
+		// explicitly disable since we rely on http.Client timeout logic.
+		exporterhelper.WithTimeout(exporterhelper.TimeoutConfig{Timeout: 0}),
+		exporterhelper.WithRetry(oCfg.RetryConfig),
+		exporterhelper.WithQueue(oCfg.QueueConfig),
 	)
 }
 
@@ -83,7 +97,9 @@ func createLogsExporter(
 	set exporter.Settings,
 	cfg component.Config,
 ) (exporter.Logs, error) {
-	exp, err := newExporter(cfg, set)
+	oCfg := cfg.(*Config)
+
+	exp, err := newExporter(oCfg, set)
 	if err != nil {
 		return nil, err
 	}
@@ -94,5 +110,9 @@ func createLogsExporter(
 		exp.pushLogs,
 		exporterhelper.WithStart(exp.start),
 		exporterhelper.WithCapabilities(consumer.Capabilities{MutatesData: false}),
+		// explicitly disable since we rely on http.Client timeout logic.
+		exporterhelper.WithTimeout(exporterhelper.TimeoutConfig{Timeout: 0}),
+		exporterhelper.WithRetry(oCfg.RetryConfig),
+		exporterhelper.WithQueue(oCfg.QueueConfig),
 	)
 }

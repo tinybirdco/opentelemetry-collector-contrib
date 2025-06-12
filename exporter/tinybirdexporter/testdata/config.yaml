@@ -3,6 +3,10 @@ tinybird:
   token: "test-token"
 
 tinybird/full:
+  retry_on_failure:
+    enabled: false
+  sending_queue:
+    enabled: false
   endpoint: "https://api.tinybird.co"
   token: "test-token"
   metrics_datasource: "metrics"
