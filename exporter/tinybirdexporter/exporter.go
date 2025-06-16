@@ -25,6 +25,8 @@ import (
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	conventions "go.opentelemetry.io/otel/semconv/v1.27.0"
+
+	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/traceutil"
 )
 
 const (
@@ -39,32 +41,28 @@ type Event interface {
 }
 
 type baseEvent struct {
-	Type               string         `json:"type"`
+	ResourceSchemaUrl  string         `json:"resource_schema_url"`
 	ResourceAttributes map[string]any `json:"resource_attributes"`
+	ServiceName        string         `json:"service_name"`
 	ScopeName          string         `json:"scope_name"`
 	ScopeVersion       string         `json:"scope_version"`
+	ScopeSchemaUrl     string         `json:"scope_schema_url"`
 	ScopeAttributes    map[string]any `json:"scope_attributes"`
-	ResourceSchemaUrl  string         `json:"resource_schema_url,omitempty"`
-	ScopeSchemaUrl     string         `json:"scope_schema_url,omitempty"`
-	ServiceName        string         `json:"service_name,omitempty"`
-	Attributes         map[string]any `json:"attributes"`
 }
 
-func newBaseEvent(dataType string, resource pcommon.Resource, scope pcommon.InstrumentationScope, attributes pcommon.Map, resourceSchemaUrl string, scopeSchemaUrl string) baseEvent {
+func newBaseEvent(resource pcommon.Resource, scope pcommon.InstrumentationScope, attributes pcommon.Map, resourceSchemaUrl string, scopeSchemaUrl string) baseEvent {
 	serviceName := ""
 	if v, ok := resource.Attributes().Get(string(conventions.ServiceNameKey)); ok {
 		serviceName = v.Str()
 	}
 	return baseEvent{
-		Type:               dataType,
+		ResourceSchemaUrl:  resourceSchemaUrl,
 		ResourceAttributes: resource.Attributes().AsRaw(),
+		ServiceName:        serviceName,
+		ScopeSchemaUrl:     scopeSchemaUrl,
 		ScopeName:          scope.Name(),
 		ScopeVersion:       scope.Version(),
 		ScopeAttributes:    scope.Attributes().AsRaw(),
-		ResourceSchemaUrl:  resourceSchemaUrl,
-		ScopeSchemaUrl:     scopeSchemaUrl,
-		ServiceName:        serviceName,
-		Attributes:         attributes.AsRaw(),
 	}
 }
 
@@ -102,13 +100,14 @@ func (metricEvent) event() {}
 
 type logEvent struct {
 	baseEvent
-	Timestamp      string `json:"timestamp"`
-	SeverityText   string `json:"severity_text,omitempty"`
-	SeverityNumber int    `json:"severity_number,omitempty"`
-	Body           string `json:"body"`
-	TraceID        string `json:"trace_id"`
-	SpanID         string `json:"span_id"`
-	TraceFlags     uint32 `json:"trace_flags,omitempty"`
+	Timestamp      string         `json:"timestamp"`
+	TraceID        string         `json:"trace_id"`
+	SpanID         string         `json:"span_id"`
+	Flags          uint32         `json:"flags"`
+	SeverityText   string         `json:"severity_text"`
+	SeverityNumber int32          `json:"severity_number"`
+	LogAttributes  map[string]any `json:"log_attributes"`
+	Body           string         `json:"body"`
 }
 
 func (logEvent) event() {}
@@ -162,10 +161,10 @@ func (e *tinybirdExporter) pushTraces(ctx context.Context, td ptrace.Traces) err
 				span := ss.Spans().At(k)
 				attributes := span.Attributes()
 				event := traceEvent{
-					baseEvent:     newBaseEvent("traces", resource, scope, attributes, schemaUrl, scopeSchemaUrl),
-					TraceID:       span.TraceID().String(),
-					SpanID:        span.SpanID().String(),
-					ParentSpanID:  span.ParentSpanID().String(),
+					baseEvent:     newBaseEvent(resource, scope, attributes, schemaUrl, scopeSchemaUrl),
+					TraceID:       traceutil.TraceIDToHexOrEmptyString(span.TraceID()),
+					SpanID:        traceutil.SpanIDToHexOrEmptyString(span.SpanID()),
+					ParentSpanID:  traceutil.SpanIDToHexOrEmptyString(span.ParentSpanID()),
 					Name:          span.Name(),
 					Kind:          span.Kind().String(),
 					StartTime:     span.StartTimestamp().AsTime().Format(time.RFC3339Nano),
@@ -181,7 +180,7 @@ func (e *tinybirdExporter) pushTraces(ctx context.Context, td ptrace.Traces) err
 		}
 	}
 
-	return e.export(ctx, "traces", e.config.Traces.Datasource, events)
+	return e.export(ctx, e.config.Traces.Datasource, events)
 }
 
 func (e *tinybirdExporter) pushMetrics(ctx context.Context, md pmetric.Metrics) error {
@@ -204,7 +203,7 @@ func (e *tinybirdExporter) pushMetrics(ctx context.Context, md pmetric.Metrics) 
 						dp := dps.At(l)
 						attributes := dp.Attributes()
 						event := metricEvent{
-							baseEvent:   newBaseEvent("metrics", resource, scope, attributes, schemaUrl, scopeSchemaUrl),
+							baseEvent:   newBaseEvent(resource, scope, attributes, schemaUrl, scopeSchemaUrl),
 							Name:        metric.Name(),
 							Description: metric.Description(),
 							Unit:        metric.Unit(),
@@ -220,7 +219,7 @@ func (e *tinybirdExporter) pushMetrics(ctx context.Context, md pmetric.Metrics) 
 						dp := dps.At(l)
 						attributes := dp.Attributes()
 						event := metricEvent{
-							baseEvent:   newBaseEvent("metrics", resource, scope, attributes, schemaUrl, scopeSchemaUrl),
+							baseEvent:   newBaseEvent(resource, scope, attributes, schemaUrl, scopeSchemaUrl),
 							Name:        metric.Name(),
 							Description: metric.Description(),
 							Unit:        metric.Unit(),
@@ -236,7 +235,7 @@ func (e *tinybirdExporter) pushMetrics(ctx context.Context, md pmetric.Metrics) 
 						dp := dps.At(l)
 						attributes := dp.Attributes()
 						event := metricEvent{
-							baseEvent:   newBaseEvent("metrics", resource, scope, attributes, schemaUrl, scopeSchemaUrl),
+							baseEvent:   newBaseEvent(resource, scope, attributes, schemaUrl, scopeSchemaUrl),
 							Name:        metric.Name(),
 							Description: metric.Description(),
 							Unit:        metric.Unit(),
@@ -252,7 +251,7 @@ func (e *tinybirdExporter) pushMetrics(ctx context.Context, md pmetric.Metrics) 
 		}
 	}
 
-	return e.export(ctx, "metrics", e.config.Metrics.Datasource, events)
+	return e.export(ctx, e.config.Metrics.Datasource, events)
 }
 
 func (e *tinybirdExporter) pushLogs(ctx context.Context, ld plog.Logs) error {
@@ -269,24 +268,25 @@ func (e *tinybirdExporter) pushLogs(ctx context.Context, ld plog.Logs) error {
 				log := sl.LogRecords().At(k)
 				attributes := log.Attributes()
 				event := logEvent{
-					baseEvent:      newBaseEvent("logs", resource, scope, attributes, schemaUrl, scopeSchemaUrl),
+					baseEvent:      newBaseEvent(resource, scope, attributes, schemaUrl, scopeSchemaUrl),
 					Timestamp:      log.Timestamp().AsTime().Format(time.RFC3339Nano),
 					SeverityText:   log.SeverityText(),
-					SeverityNumber: int(log.SeverityNumber()),
+					SeverityNumber: int32(log.SeverityNumber()),
+					LogAttributes:  attributes.AsRaw(),
 					Body:           log.Body().AsString(),
-					TraceID:        log.TraceID().String(),
-					SpanID:         log.SpanID().String(),
-					TraceFlags:     uint32(log.Flags()) & 0xff,
+					TraceID:        traceutil.TraceIDToHexOrEmptyString(log.TraceID()),
+					SpanID:         traceutil.SpanIDToHexOrEmptyString(log.SpanID()),
+					Flags:          uint32(log.Flags()),
 				}
 				events = append(events, event)
 			}
 		}
 	}
 
-	return e.export(ctx, "logs", e.config.Logs.Datasource, events)
+	return e.export(ctx, e.config.Logs.Datasource, events)
 }
 
-func (e *tinybirdExporter) export(ctx context.Context, dataType string, dataSource string, events []Event) error {
+func (e *tinybirdExporter) export(ctx context.Context, dataSource string, events []Event) error {
 	// Convert events to NDJSON
 	var buf bytes.Buffer
 	for _, event := range events {
