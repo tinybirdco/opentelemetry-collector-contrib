@@ -34,6 +34,15 @@ const (
 	contentTypeNDJSON = "application/x-ndjson"
 )
 
+func convertAttributes(attributes pcommon.Map) map[string]string {
+	attrs := make(map[string]string, attributes.Len())
+	attributes.Range(func(k string, v pcommon.Value) bool {
+		attrs[k] = v.AsString()
+		return true
+	})
+	return attrs
+}
+
 // Event represents any type of event that can be exported
 type Event interface {
 	// ensure only our event types can implement this interface
@@ -41,45 +50,55 @@ type Event interface {
 }
 
 type baseEvent struct {
-	ResourceSchemaUrl  string         `json:"resource_schema_url"`
-	ResourceAttributes map[string]any `json:"resource_attributes"`
-	ServiceName        string         `json:"service_name"`
-	ScopeName          string         `json:"scope_name"`
-	ScopeVersion       string         `json:"scope_version"`
-	ScopeSchemaUrl     string         `json:"scope_schema_url"`
-	ScopeAttributes    map[string]any `json:"scope_attributes"`
+	ResourceSchemaUrl  string            `json:"resource_schema_url"`
+	ResourceAttributes map[string]string `json:"resource_attributes"`
+	ServiceName        string            `json:"service_name"`
+	ScopeName          string            `json:"scope_name"`
+	ScopeVersion       string            `json:"scope_version"`
+	ScopeSchemaUrl     string            `json:"scope_schema_url"`
+	ScopeAttributes    map[string]string `json:"scope_attributes"`
 }
 
-func newBaseEvent(resource pcommon.Resource, scope pcommon.InstrumentationScope, attributes pcommon.Map, resourceSchemaUrl string, scopeSchemaUrl string) baseEvent {
+func newBaseEvent(resource pcommon.Resource, scope pcommon.InstrumentationScope, resourceSchemaUrl string, scopeSchemaUrl string) baseEvent {
 	serviceName := ""
 	if v, ok := resource.Attributes().Get(string(conventions.ServiceNameKey)); ok {
 		serviceName = v.Str()
 	}
 	return baseEvent{
 		ResourceSchemaUrl:  resourceSchemaUrl,
-		ResourceAttributes: resource.Attributes().AsRaw(),
+		ResourceAttributes: convertAttributes(resource.Attributes()),
 		ServiceName:        serviceName,
 		ScopeSchemaUrl:     scopeSchemaUrl,
 		ScopeName:          scope.Name(),
 		ScopeVersion:       scope.Version(),
-		ScopeAttributes:    scope.Attributes().AsRaw(),
+		ScopeAttributes:    convertAttributes(scope.Attributes()),
 	}
 }
 
 type traceEvent struct {
 	baseEvent
-	TraceID       string `json:"trace_id"`
-	SpanID        string `json:"span_id"`
-	ParentSpanID  string `json:"parent_span_id"`
-	Name          string `json:"name"`
-	Kind          string `json:"kind"`
-	StartTime     string `json:"start_time"`
-	EndTime       string `json:"end_time"`
-	StatusCode    string `json:"status_code"`
-	StatusMessage string `json:"status_message"`
-	Events        int    `json:"events"`
-	Links         int    `json:"links"`
-	TraceFlags    uint32 `json:"trace_flags,omitempty"`
+	TraceID        string            `json:"trace_id"`
+	SpanID         string            `json:"span_id"`
+	ParentSpanID   string            `json:"parent_span_id"`
+	TraceState     string            `json:"trace_state"`
+	TraceFlags     uint32            `json:"trace_flags"`
+	SpanName       string            `json:"span_name"`
+	SpanKind       string            `json:"span_kind"`
+	SpanAttributes map[string]string `json:"span_attributes"`
+	StartTime      string            `json:"start_time"`
+	// Format start-end
+	EndTime string `json:"end_time,omitempty"`
+	// format start-duration
+	Duration         int64               `json:"duration,omitempty"`
+	StatusCode       string              `json:"status_code"`
+	StatusMessage    string              `json:"status_message"`
+	EventsTimestamp  []string            `json:"events_timestamp"`
+	EventsName       []string            `json:"events_name"`
+	EventsAttributes []map[string]string `json:"events_attributes"`
+	LinksTraceID     []string            `json:"links_trace_id"`
+	LinksSpanID      []string            `json:"links_span_id"`
+	LinksTraceState  []string            `json:"links_trace_state"`
+	LinksAttributes  []map[string]string `json:"links_attributes"`
 }
 
 func (traceEvent) event() {}
@@ -100,14 +119,14 @@ func (metricEvent) event() {}
 
 type logEvent struct {
 	baseEvent
-	Timestamp      string         `json:"timestamp"`
-	TraceID        string         `json:"trace_id"`
-	SpanID         string         `json:"span_id"`
-	Flags          uint32         `json:"flags"`
-	SeverityText   string         `json:"severity_text"`
-	SeverityNumber int32          `json:"severity_number"`
-	LogAttributes  map[string]any `json:"log_attributes"`
-	Body           string         `json:"body"`
+	Timestamp      string            `json:"timestamp"`
+	TraceID        string            `json:"trace_id"`
+	SpanID         string            `json:"span_id"`
+	Flags          uint32            `json:"flags"`
+	SeverityText   string            `json:"severity_text"`
+	SeverityNumber int32             `json:"severity_number"`
+	LogAttributes  map[string]string `json:"log_attributes"`
+	Body           string            `json:"body"`
 }
 
 func (logEvent) event() {}
@@ -147,6 +166,27 @@ func (e *tinybirdExporter) start(ctx context.Context, host component.Host) error
 	return nil
 }
 
+func convertEvents(events ptrace.SpanEventSlice) (times []string, names []string, attrs []map[string]string) {
+	for i := 0; i < events.Len(); i++ {
+		event := events.At(i)
+		times = append(times, event.Timestamp().AsTime().Format(time.RFC3339Nano))
+		names = append(names, event.Name())
+		attrs = append(attrs, convertAttributes(event.Attributes()))
+	}
+	return
+}
+
+func convertLinks(links ptrace.SpanLinkSlice) (traceIDs []string, spanIDs []string, states []string, attrs []map[string]string) {
+	for i := 0; i < links.Len(); i++ {
+		link := links.At(i)
+		traceIDs = append(traceIDs, traceutil.TraceIDToHexOrEmptyString(link.TraceID()))
+		spanIDs = append(spanIDs, traceutil.SpanIDToHexOrEmptyString(link.SpanID()))
+		states = append(states, link.TraceState().AsRaw())
+		attrs = append(attrs, convertAttributes(link.Attributes()))
+	}
+	return
+}
+
 func (e *tinybirdExporter) pushTraces(ctx context.Context, td ptrace.Traces) error {
 	events := make([]Event, 0, td.SpanCount())
 	for i := 0; i < td.ResourceSpans().Len(); i++ {
@@ -160,20 +200,30 @@ func (e *tinybirdExporter) pushTraces(ctx context.Context, td ptrace.Traces) err
 			for k := 0; k < ss.Spans().Len(); k++ {
 				span := ss.Spans().At(k)
 				attributes := span.Attributes()
+				eventTimes, eventNames, eventAttrs := convertEvents(span.Events())
+				linksTraceIDs, linksSpanIDs, linksTraceStates, linksAttrs := convertLinks(span.Links())
 				event := traceEvent{
-					baseEvent:     newBaseEvent(resource, scope, attributes, schemaUrl, scopeSchemaUrl),
-					TraceID:       traceutil.TraceIDToHexOrEmptyString(span.TraceID()),
-					SpanID:        traceutil.SpanIDToHexOrEmptyString(span.SpanID()),
-					ParentSpanID:  traceutil.SpanIDToHexOrEmptyString(span.ParentSpanID()),
-					Name:          span.Name(),
-					Kind:          span.Kind().String(),
-					StartTime:     span.StartTimestamp().AsTime().Format(time.RFC3339Nano),
-					EndTime:       span.EndTimestamp().AsTime().Format(time.RFC3339Nano),
-					StatusCode:    span.Status().Code().String(),
-					StatusMessage: span.Status().Message(),
-					Events:        span.Events().Len(),
-					Links:         span.Links().Len(),
-					TraceFlags:    span.Flags() & 0xff,
+					baseEvent:        newBaseEvent(resource, scope, schemaUrl, scopeSchemaUrl),
+					TraceID:          traceutil.TraceIDToHexOrEmptyString(span.TraceID()),
+					SpanID:           traceutil.SpanIDToHexOrEmptyString(span.SpanID()),
+					ParentSpanID:     traceutil.SpanIDToHexOrEmptyString(span.ParentSpanID()),
+					TraceState:       span.TraceState().AsRaw(),
+					TraceFlags:       span.Flags(),
+					SpanName:         span.Name(),
+					SpanKind:         span.Kind().String(),
+					SpanAttributes:   convertAttributes(attributes),
+					StartTime:        span.StartTimestamp().AsTime().Format(time.RFC3339Nano),
+					EndTime:          span.EndTimestamp().AsTime().Format(time.RFC3339Nano),
+					Duration:         span.EndTimestamp().AsTime().Sub(span.StartTimestamp().AsTime()).Nanoseconds(),
+					StatusCode:       span.Status().Code().String(),
+					StatusMessage:    span.Status().Message(),
+					EventsTimestamp:  eventTimes,
+					EventsName:       eventNames,
+					EventsAttributes: eventAttrs,
+					LinksTraceID:     linksTraceIDs,
+					LinksSpanID:      linksSpanIDs,
+					LinksTraceState:  linksTraceStates,
+					LinksAttributes:  linksAttrs,
 				}
 				events = append(events, event)
 			}
@@ -201,9 +251,8 @@ func (e *tinybirdExporter) pushMetrics(ctx context.Context, md pmetric.Metrics) 
 					dps := metric.Gauge().DataPoints()
 					for l := 0; l < dps.Len(); l++ {
 						dp := dps.At(l)
-						attributes := dp.Attributes()
 						event := metricEvent{
-							baseEvent:   newBaseEvent(resource, scope, attributes, schemaUrl, scopeSchemaUrl),
+							baseEvent:   newBaseEvent(resource, scope, schemaUrl, scopeSchemaUrl),
 							Name:        metric.Name(),
 							Description: metric.Description(),
 							Unit:        metric.Unit(),
@@ -217,9 +266,8 @@ func (e *tinybirdExporter) pushMetrics(ctx context.Context, md pmetric.Metrics) 
 					dps := metric.Sum().DataPoints()
 					for l := 0; l < dps.Len(); l++ {
 						dp := dps.At(l)
-						attributes := dp.Attributes()
 						event := metricEvent{
-							baseEvent:   newBaseEvent(resource, scope, attributes, schemaUrl, scopeSchemaUrl),
+							baseEvent:   newBaseEvent(resource, scope, schemaUrl, scopeSchemaUrl),
 							Name:        metric.Name(),
 							Description: metric.Description(),
 							Unit:        metric.Unit(),
@@ -233,9 +281,8 @@ func (e *tinybirdExporter) pushMetrics(ctx context.Context, md pmetric.Metrics) 
 					dps := metric.Histogram().DataPoints()
 					for l := 0; l < dps.Len(); l++ {
 						dp := dps.At(l)
-						attributes := dp.Attributes()
 						event := metricEvent{
-							baseEvent:   newBaseEvent(resource, scope, attributes, schemaUrl, scopeSchemaUrl),
+							baseEvent:   newBaseEvent(resource, scope, schemaUrl, scopeSchemaUrl),
 							Name:        metric.Name(),
 							Description: metric.Description(),
 							Unit:        metric.Unit(),
@@ -266,13 +313,12 @@ func (e *tinybirdExporter) pushLogs(ctx context.Context, ld plog.Logs) error {
 			scopeSchemaUrl := sl.SchemaUrl()
 			for k := 0; k < sl.LogRecords().Len(); k++ {
 				log := sl.LogRecords().At(k)
-				attributes := log.Attributes()
 				event := logEvent{
-					baseEvent:      newBaseEvent(resource, scope, attributes, schemaUrl, scopeSchemaUrl),
+					baseEvent:      newBaseEvent(resource, scope, schemaUrl, scopeSchemaUrl),
 					Timestamp:      log.Timestamp().AsTime().Format(time.RFC3339Nano),
 					SeverityText:   log.SeverityText(),
 					SeverityNumber: int32(log.SeverityNumber()),
-					LogAttributes:  attributes.AsRaw(),
+					LogAttributes:  convertAttributes(log.Attributes()),
 					Body:           log.Body().AsString(),
 					TraceID:        traceutil.TraceIDToHexOrEmptyString(log.TraceID()),
 					SpanID:         traceutil.SpanIDToHexOrEmptyString(log.SpanID()),
