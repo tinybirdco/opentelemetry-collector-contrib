@@ -166,25 +166,32 @@ func (e *tinybirdExporter) start(ctx context.Context, host component.Host) error
 	return nil
 }
 
-func convertEvents(events ptrace.SpanEventSlice) (times []string, names []string, attrs []map[string]string) {
+func convertEvents(events ptrace.SpanEventSlice) ([]string, []string, []map[string]string) {
+	timestamps := make([]string, events.Len())
+	names := make([]string, events.Len())
+	attributes := make([]map[string]string, events.Len())
 	for i := 0; i < events.Len(); i++ {
 		event := events.At(i)
-		times = append(times, event.Timestamp().AsTime().Format(time.RFC3339Nano))
-		names = append(names, event.Name())
-		attrs = append(attrs, convertAttributes(event.Attributes()))
+		timestamps[i] = event.Timestamp().AsTime().Format(time.RFC3339Nano)
+		names[i] = event.Name()
+		attributes[i] = convertAttributes(event.Attributes())
 	}
-	return
+	return timestamps, names, attributes
 }
 
-func convertLinks(links ptrace.SpanLinkSlice) (traceIDs []string, spanIDs []string, states []string, attrs []map[string]string) {
+func convertLinks(links ptrace.SpanLinkSlice) ([]string, []string, []string, []map[string]string) {
+	traceIDs := make([]string, links.Len())
+	spanIDs := make([]string, links.Len())
+	states := make([]string, links.Len())
+	attrs := make([]map[string]string, links.Len())
 	for i := 0; i < links.Len(); i++ {
 		link := links.At(i)
-		traceIDs = append(traceIDs, traceutil.TraceIDToHexOrEmptyString(link.TraceID()))
-		spanIDs = append(spanIDs, traceutil.SpanIDToHexOrEmptyString(link.SpanID()))
-		states = append(states, link.TraceState().AsRaw())
-		attrs = append(attrs, convertAttributes(link.Attributes()))
+		traceIDs[i] = traceutil.TraceIDToHexOrEmptyString(link.TraceID())
+		spanIDs[i] = traceutil.SpanIDToHexOrEmptyString(link.SpanID())
+		states[i] = link.TraceState().AsRaw()
+		attrs[i] = convertAttributes(link.Attributes())
 	}
-	return
+	return traceIDs, spanIDs, states, attrs
 }
 
 func (e *tinybirdExporter) pushTraces(ctx context.Context, td ptrace.Traces) error {
