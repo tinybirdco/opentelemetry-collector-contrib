@@ -34,11 +34,14 @@ func TestNewExporter(t *testing.T) {
 				ClientConfig: confighttp.ClientConfig{
 					Endpoint: "http://localhost:8080",
 				},
-				Token:   "test-token",
-				Metrics: SignalConfig{Datasource: "metrics_test"},
-				Traces:  SignalConfig{Datasource: "traces_test"},
-				Logs:    SignalConfig{Datasource: "logs_test"},
-				Wait:    true,
+				Token:                       "test-token",
+				MetricsGauge:                SignalConfig{Datasource: "metrics_test"},
+				MetricsSum:                  SignalConfig{Datasource: "metrics_sum"},
+				MetricsHistogram:            SignalConfig{Datasource: "metrics_histogram"},
+				MetricsExponentialHistogram: SignalConfig{Datasource: "metrics_exponential_histogram"},
+				Traces:                      SignalConfig{Datasource: "traces_test"},
+				Logs:                        SignalConfig{Datasource: "logs_test"},
+				Wait:                        true,
 			},
 			wantErr: false,
 		},
@@ -48,10 +51,13 @@ func TestNewExporter(t *testing.T) {
 				ClientConfig: confighttp.ClientConfig{
 					Endpoint: "invalid-url",
 				},
-				Token:   "test-token",
-				Metrics: SignalConfig{Datasource: "metrics_test"},
-				Traces:  SignalConfig{Datasource: "traces_test"},
-				Logs:    SignalConfig{Datasource: "logs_test"},
+				Token:                       "test-token",
+				MetricsGauge:                SignalConfig{Datasource: "metrics_test"},
+				MetricsSum:                  SignalConfig{Datasource: "metrics_sum"},
+				MetricsHistogram:            SignalConfig{Datasource: "metrics_histogram"},
+				MetricsExponentialHistogram: SignalConfig{Datasource: "metrics_exponential_histogram"},
+				Traces:                      SignalConfig{Datasource: "traces_test"},
+				Logs:                        SignalConfig{Datasource: "logs_test"},
 			},
 			wantErr: true,
 		},
@@ -61,9 +67,12 @@ func TestNewExporter(t *testing.T) {
 				ClientConfig: confighttp.ClientConfig{
 					Endpoint: "http://localhost:8080",
 				},
-				Metrics: SignalConfig{Datasource: "metrics_test"},
-				Traces:  SignalConfig{Datasource: "traces_test"},
-				Logs:    SignalConfig{Datasource: "logs_test"},
+				MetricsGauge:                SignalConfig{Datasource: "metrics_test"},
+				MetricsSum:                  SignalConfig{Datasource: "metrics_sum"},
+				MetricsHistogram:            SignalConfig{Datasource: "metrics_histogram"},
+				MetricsExponentialHistogram: SignalConfig{Datasource: "metrics_exponential_histogram"},
+				Traces:                      SignalConfig{Datasource: "traces_test"},
+				Logs:                        SignalConfig{Datasource: "logs_test"},
 			},
 			wantErr: true,
 		},
@@ -133,11 +142,9 @@ func TestExportTraces(t *testing.T) {
 				ClientConfig: confighttp.ClientConfig{
 					Endpoint: server.URL,
 				},
-				Token:   "test-token",
-				Metrics: SignalConfig{Datasource: "metrics_test"},
-				Traces:  SignalConfig{Datasource: "traces_test"},
-				Logs:    SignalConfig{Datasource: "logs_test"},
-				Wait:    tt.wait,
+				Token:  "test-token",
+				Traces: SignalConfig{Datasource: "traces_test"},
+				Wait:   tt.wait,
 			}
 
 			exp, err := newExporter(config, exportertest.NewNopSettings(metadata.Type))
@@ -171,14 +178,14 @@ func TestExportMetrics(t *testing.T) {
 		{
 			name:           "export without wait",
 			wait:           false,
-			expectedQuery:  "name=metrics_test",
+			expectedQuery:  "name=metrics_gauge",
 			responseStatus: http.StatusOK,
 			wantErr:        false,
 		},
 		{
 			name:           "export with wait",
 			wait:           true,
-			expectedQuery:  "name=metrics_test&wait=true",
+			expectedQuery:  "name=metrics_gauge&wait=true",
 			responseStatus: http.StatusOK,
 			wantErr:        false,
 		},
@@ -200,11 +207,14 @@ func TestExportMetrics(t *testing.T) {
 				ClientConfig: confighttp.ClientConfig{
 					Endpoint: server.URL,
 				},
-				Token:   "test-token",
-				Metrics: SignalConfig{Datasource: "metrics_test"},
-				Traces:  SignalConfig{Datasource: "traces_test"},
-				Logs:    SignalConfig{Datasource: "logs_test"},
-				Wait:    tt.wait,
+				Token:                       "test-token",
+				MetricsGauge:                SignalConfig{Datasource: "metrics_gauge"},
+				MetricsSum:                  SignalConfig{Datasource: "metrics_sum"},
+				MetricsHistogram:            SignalConfig{Datasource: "metrics_histogram"},
+				MetricsExponentialHistogram: SignalConfig{Datasource: "metrics_exponential_histogram"},
+				Traces:                      SignalConfig{Datasource: "traces_test"},
+				Logs:                        SignalConfig{Datasource: "logs_test"},
+				Wait:                        tt.wait,
 			}
 
 			exp, err := newExporter(config, exportertest.NewNopSettings(metadata.Type))
@@ -216,6 +226,8 @@ func TestExportMetrics(t *testing.T) {
 			sm := rm.ScopeMetrics().AppendEmpty()
 			metric := sm.Metrics().AppendEmpty()
 			metric.SetName("test-metric")
+			metric.SetEmptyGauge()
+			metric.Gauge().DataPoints().AppendEmpty()
 
 			err = exp.pushMetrics(context.Background(), metrics)
 			if tt.wantErr {
@@ -267,11 +279,9 @@ func TestExportLogs(t *testing.T) {
 				ClientConfig: confighttp.ClientConfig{
 					Endpoint: server.URL,
 				},
-				Token:   "test-token",
-				Metrics: SignalConfig{Datasource: "metrics_test"},
-				Traces:  SignalConfig{Datasource: "traces_test"},
-				Logs:    SignalConfig{Datasource: "logs_test"},
-				Wait:    tt.wait,
+				Token: "test-token",
+				Logs:  SignalConfig{Datasource: "logs_test"},
+				Wait:  tt.wait,
 			}
 
 			exp, err := newExporter(config, exportertest.NewNopSettings(metadata.Type))
@@ -343,10 +353,10 @@ func TestExportErrorHandling(t *testing.T) {
 				ClientConfig: confighttp.ClientConfig{
 					Endpoint: server.URL,
 				},
-				Token:   "test-token",
-				Metrics: SignalConfig{Datasource: "metrics_test"},
-				Traces:  SignalConfig{Datasource: "traces_test"},
-				Logs:    SignalConfig{Datasource: "logs_test"},
+				Token:        "test-token",
+				MetricsGauge: SignalConfig{Datasource: "metrics_test"},
+				Traces:       SignalConfig{Datasource: "traces_test"},
+				Logs:         SignalConfig{Datasource: "logs_test"},
 			}
 
 			exp, err := newExporter(config, exportertest.NewNopSettings(metadata.Type))

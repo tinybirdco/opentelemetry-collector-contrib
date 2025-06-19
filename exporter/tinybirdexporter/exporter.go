@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -103,16 +104,81 @@ type traceEvent struct {
 
 func (traceEvent) event() {}
 
+type sumMetric struct {
+	metricEvent
+	ExemplarsTraceId            []string            `json:"exemplars_trace_id"`
+	ExemplarsSpanId             []string            `json:"exemplars_span_id"`
+	ExemplarsTimestamp          []string            `json:"exemplars_timestamp"`
+	ExemplarsFilteredAttributes []map[string]string `json:"exemplars_filtered_attributes"`
+	ExemplarsValue              []float64           `json:"exemplars_value"`
+	Value                       float64             `json:"value"`
+	AggregationTemporality      int32               `json:"aggregation_temporality"`
+	IsMonotonic                 bool                `json:"is_monotonic"`
+}
+
+func (sumMetric) event() {}
+
+type histogramMetric struct {
+	metricEvent
+	ExemplarsTraceId            []string            `json:"exemplars_trace_id"`
+	ExemplarsSpanId             []string            `json:"exemplars_span_id"`
+	ExemplarsTimestamp          []string            `json:"exemplars_timestamp"`
+	ExemplarsFilteredAttributes []map[string]string `json:"exemplars_filtered_attributes"`
+	ExemplarsValue              []float64           `json:"exemplars_value"`
+	Count                       uint64              `json:"count"`
+	Sum                         float64             `json:"sum"`
+	BucketCounts                []uint64            `json:"bucket_counts"`
+	ExplicitBounds              []float64           `json:"explicit_bounds"`
+	Min                         *float64            `json:"min,omitempty"`
+	Max                         *float64            `json:"max,omitempty"`
+	AggregationTemporality      int32               `json:"aggregation_temporality"`
+}
+
+func (histogramMetric) event() {}
+
+type exponentialHistogramMetrics struct {
+	metricEvent
+	Count                       uint64              `json:"count"`
+	Sum                         float64             `json:"sum"`
+	Scale                       int32               `json:"scale"`
+	ZeroCount                   uint64              `json:"zero_count"`
+	PositiveOffset              int32               `json:"positive_offset"`
+	PositiveBucketCounts        []uint64            `json:"positive_bucket_counts"`
+	NegativeOffset              int32               `json:"negative_offset"`
+	NegativeBucketCounts        []uint64            `json:"negative_bucket_counts"`
+	Min                         *float64            `json:"min,omitempty"`
+	Max                         *float64            `json:"max,omitempty"`
+	AggregationTemporality      int32               `json:"aggregation_temporality"`
+	ExemplarsFilteredAttributes []map[string]string `json:"exemplars_filtered_attributes"`
+	ExemplarsTimestamp          []string            `json:"exemplars_timestamp"`
+	ExemplarsValue              []float64           `json:"exemplars_value"`
+	ExemplarsSpanId             []string            `json:"exemplars_span_id"`
+	ExemplarsTraceId            []string            `json:"exemplars_trace_id"`
+}
+
+func (exponentialHistogramMetrics) event() {}
+
+type gaugeMetric struct {
+	metricEvent
+	ExemplarsTraceId            []string            `json:"exemplars_trace_id"`
+	ExemplarsSpanId             []string            `json:"exemplars_span_id"`
+	ExemplarsTimestamp          []string            `json:"exemplars_timestamp"`
+	ExemplarsFilteredAttributes []map[string]string `json:"exemplars_filtered_attributes"`
+	ExemplarsValue              []float64           `json:"exemplars_value"`
+	Value                       float64             `json:"value"`
+}
+
+func (gaugeMetric) event() {}
+
 type metricEvent struct {
 	baseEvent
-	Name        string  `json:"name"`
-	Description string  `json:"description"`
-	Unit        string  `json:"unit"`
-	Type        string  `json:"type"`
-	Value       float64 `json:"value,omitempty"`
-	Count       uint64  `json:"count,omitempty"`
-	Sum         float64 `json:"sum,omitempty"`
-	Timestamp   string  `json:"timestamp"`
+	MetricName        string            `json:"metric_name"`
+	MetricDescription string            `json:"metric_description"`
+	MetricUnit        string            `json:"metric_unit"`
+	MetricAttributes  map[string]string `json:"metric_attributes"`
+	StartTimestamp    string            `json:"start_timestamp"`
+	Timestamp         string            `json:"timestamp"`
+	Flags             uint32            `json:"flags"`
 }
 
 func (metricEvent) event() {}
@@ -241,7 +307,12 @@ func (e *tinybirdExporter) pushTraces(ctx context.Context, td ptrace.Traces) err
 }
 
 func (e *tinybirdExporter) pushMetrics(ctx context.Context, md pmetric.Metrics) error {
-	events := make([]Event, 0, md.MetricCount())
+	metricCount := md.MetricCount()
+	gaugeEvents := make([]Event, 0, metricCount)
+	sumEvents := make([]Event, 0, metricCount)
+	histogramEvents := make([]Event, 0, metricCount)
+	exponentialHistogramEvents := make([]Event, 0, metricCount)
+
 	for i := 0; i < md.ResourceMetrics().Len(); i++ {
 		rm := md.ResourceMetrics().At(i)
 		resource := rm.Resource()
@@ -252,60 +323,200 @@ func (e *tinybirdExporter) pushMetrics(ctx context.Context, md pmetric.Metrics) 
 			scopeSchemaUrl := sm.SchemaUrl()
 			for k := 0; k < sm.Metrics().Len(); k++ {
 				metric := sm.Metrics().At(k)
+				base := func() metricEvent {
+					return metricEvent{
+						baseEvent:         newBaseEvent(resource, scope, schemaUrl, scopeSchemaUrl),
+						MetricName:        metric.Name(),
+						MetricDescription: metric.Description(),
+						MetricUnit:        metric.Unit(),
+					}
+				}()
 
 				switch metric.Type() {
 				case pmetric.MetricTypeGauge:
 					dps := metric.Gauge().DataPoints()
 					for l := 0; l < dps.Len(); l++ {
 						dp := dps.At(l)
-						event := metricEvent{
-							baseEvent:   newBaseEvent(resource, scope, schemaUrl, scopeSchemaUrl),
-							Name:        metric.Name(),
-							Description: metric.Description(),
-							Unit:        metric.Unit(),
-							Type:        metric.Type().String(),
-							Value:       dp.DoubleValue(),
-							Timestamp:   dp.Timestamp().AsTime().Format(time.RFC3339Nano),
+						me := base
+						me.MetricAttributes = convertAttributes(dp.Attributes())
+						me.StartTimestamp = dp.StartTimestamp().AsTime().Format(time.RFC3339Nano)
+						me.Timestamp = dp.Timestamp().AsTime().Format(time.RFC3339Nano)
+						me.Flags = uint32(dp.Flags())
+						var value float64
+						switch dp.ValueType() {
+						case pmetric.NumberDataPointValueTypeInt:
+							value = float64(dp.IntValue())
+						case pmetric.NumberDataPointValueTypeDouble:
+							value = dp.DoubleValue()
+						case pmetric.NumberDataPointValueTypeEmpty:
+							value = 0.0
 						}
-						events = append(events, event)
+						filteredAttrs, timestamps, values, spanIDs, traceIDs := computeExemplars(dp.Exemplars())
+						gaugeEvents = append(gaugeEvents, gaugeMetric{
+							metricEvent:                 me,
+							Value:                       value,
+							ExemplarsFilteredAttributes: filteredAttrs,
+							ExemplarsTimestamp:          timestamps,
+							ExemplarsValue:              values,
+							ExemplarsSpanId:             spanIDs,
+							ExemplarsTraceId:            traceIDs,
+						})
 					}
 				case pmetric.MetricTypeSum:
-					dps := metric.Sum().DataPoints()
+					sum := metric.Sum()
+					dps := sum.DataPoints()
 					for l := 0; l < dps.Len(); l++ {
 						dp := dps.At(l)
-						event := metricEvent{
-							baseEvent:   newBaseEvent(resource, scope, schemaUrl, scopeSchemaUrl),
-							Name:        metric.Name(),
-							Description: metric.Description(),
-							Unit:        metric.Unit(),
-							Type:        metric.Type().String(),
-							Value:       dp.DoubleValue(),
-							Timestamp:   dp.Timestamp().AsTime().Format(time.RFC3339Nano),
+						me := base
+						me.MetricAttributes = convertAttributes(dp.Attributes())
+						me.StartTimestamp = dp.StartTimestamp().AsTime().Format(time.RFC3339Nano)
+						me.Timestamp = dp.Timestamp().AsTime().Format(time.RFC3339Nano)
+						me.Flags = uint32(dp.Flags())
+						var value float64
+						switch dp.ValueType() {
+						case pmetric.NumberDataPointValueTypeInt:
+							value = float64(dp.IntValue())
+						case pmetric.NumberDataPointValueTypeDouble:
+							value = dp.DoubleValue()
+						case pmetric.NumberDataPointValueTypeEmpty:
+							value = 0.0
 						}
-						events = append(events, event)
+						filteredAttrs, timestamps, values, spanIDs, traceIDs := computeExemplars(dp.Exemplars())
+						sumEvents = append(sumEvents, sumMetric{
+							metricEvent:                 me,
+							Value:                       value,
+							AggregationTemporality:      int32(sum.AggregationTemporality()),
+							IsMonotonic:                 sum.IsMonotonic(),
+							ExemplarsFilteredAttributes: filteredAttrs,
+							ExemplarsTimestamp:          timestamps,
+							ExemplarsValue:              values,
+							ExemplarsSpanId:             spanIDs,
+							ExemplarsTraceId:            traceIDs,
+						})
 					}
 				case pmetric.MetricTypeHistogram:
-					dps := metric.Histogram().DataPoints()
+					hist := metric.Histogram()
+					dps := hist.DataPoints()
 					for l := 0; l < dps.Len(); l++ {
 						dp := dps.At(l)
-						event := metricEvent{
-							baseEvent:   newBaseEvent(resource, scope, schemaUrl, scopeSchemaUrl),
-							Name:        metric.Name(),
-							Description: metric.Description(),
-							Unit:        metric.Unit(),
-							Type:        metric.Type().String(),
-							Count:       dp.Count(),
-							Sum:         dp.Sum(),
-							Timestamp:   dp.Timestamp().AsTime().Format(time.RFC3339Nano),
+						me := base
+						me.MetricAttributes = convertAttributes(dp.Attributes())
+						me.StartTimestamp = dp.StartTimestamp().AsTime().Format(time.RFC3339Nano)
+						me.Timestamp = dp.Timestamp().AsTime().Format(time.RFC3339Nano)
+						me.Flags = uint32(dp.Flags())
+						var minVal, maxVal *float64
+						if dp.HasMin() {
+							localMin := dp.Min()
+							minVal = &localMin
 						}
-						events = append(events, event)
+						if dp.HasMax() {
+							localMax := dp.Max()
+							maxVal = &localMax
+						}
+						filteredAttrs, timestamps, values, spanIDs, traceIDs := computeExemplars(dp.Exemplars())
+						histogramEvents = append(histogramEvents, histogramMetric{
+							metricEvent:                 me,
+							Count:                       dp.Count(),
+							Sum:                         dp.Sum(),
+							BucketCounts:                dp.BucketCounts().AsRaw(),
+							ExplicitBounds:              dp.ExplicitBounds().AsRaw(),
+							Min:                         minVal,
+							Max:                         maxVal,
+							AggregationTemporality:      int32(hist.AggregationTemporality()),
+							ExemplarsFilteredAttributes: filteredAttrs,
+							ExemplarsTimestamp:          timestamps,
+							ExemplarsValue:              values,
+							ExemplarsSpanId:             spanIDs,
+							ExemplarsTraceId:            traceIDs,
+						})
+					}
+				case pmetric.MetricTypeExponentialHistogram:
+					ehist := metric.ExponentialHistogram()
+					dps := ehist.DataPoints()
+					for l := 0; l < dps.Len(); l++ {
+						dp := dps.At(l)
+						me := base
+						me.MetricAttributes = convertAttributes(dp.Attributes())
+						me.StartTimestamp = dp.StartTimestamp().AsTime().Format(time.RFC3339Nano)
+						me.Timestamp = dp.Timestamp().AsTime().Format(time.RFC3339Nano)
+						me.Flags = uint32(dp.Flags())
+						var minVal, maxVal *float64
+						if dp.HasMin() {
+							localMin := dp.Min()
+							minVal = &localMin
+						}
+						if dp.HasMax() {
+							localMax := dp.Max()
+							maxVal = &localMax
+						}
+						filteredAttrs, timestamps, values, spanIDs, traceIDs := computeExemplars(dp.Exemplars())
+						exponentialHistogramEvents = append(exponentialHistogramEvents, exponentialHistogramMetrics{
+							metricEvent:                 me,
+							Count:                       dp.Count(),
+							Sum:                         dp.Sum(),
+							Scale:                       dp.Scale(),
+							ZeroCount:                   dp.ZeroCount(),
+							PositiveOffset:              dp.Positive().Offset(),
+							PositiveBucketCounts:        dp.Positive().BucketCounts().AsRaw(),
+							NegativeOffset:              dp.Negative().Offset(),
+							NegativeBucketCounts:        dp.Negative().BucketCounts().AsRaw(),
+							Min:                         minVal,
+							Max:                         maxVal,
+							AggregationTemporality:      int32(ehist.AggregationTemporality()),
+							ExemplarsFilteredAttributes: filteredAttrs,
+							ExemplarsTimestamp:          timestamps,
+							ExemplarsValue:              values,
+							ExemplarsSpanId:             spanIDs,
+							ExemplarsTraceId:            traceIDs,
+						})
 					}
 				}
 			}
 		}
 	}
 
-	return e.export(ctx, e.config.Metrics.Datasource, events)
+	var err error
+	if len(gaugeEvents) > 0 {
+		err = errors.Join(err, e.export(ctx, e.config.MetricsGauge.Datasource, gaugeEvents))
+	}
+	if len(sumEvents) > 0 {
+		err = errors.Join(err, e.export(ctx, e.config.MetricsSum.Datasource, sumEvents))
+	}
+	if len(histogramEvents) > 0 {
+		err = errors.Join(err, e.export(ctx, e.config.MetricsHistogram.Datasource, histogramEvents))
+	}
+	if len(exponentialHistogramEvents) > 0 {
+		err = errors.Join(err, e.export(ctx, e.config.MetricsExponentialHistogram.Datasource, exponentialHistogramEvents))
+	}
+	return err
+}
+
+// Helper to fill exemplars into a metricEvent
+func computeExemplars(exemplars pmetric.ExemplarSlice) ([]map[string]string, []string, []float64, []string, []string) {
+	filteredAttributes := make([]map[string]string, exemplars.Len())
+	timestamps := make([]string, exemplars.Len())
+	values := make([]float64, exemplars.Len())
+	spanIDs := make([]string, exemplars.Len())
+	traceIDs := make([]string, exemplars.Len())
+	for i := 0; i < exemplars.Len(); i++ {
+		ex := exemplars.At(i)
+		filteredAttributes[i] = convertAttributes(ex.FilteredAttributes())
+		timestamps[i] = ex.Timestamp().AsTime().Format(time.RFC3339Nano)
+		var value float64
+		switch ex.ValueType() {
+		case pmetric.ExemplarValueTypeInt:
+			value = float64(ex.IntValue())
+		case pmetric.ExemplarValueTypeDouble:
+			value = ex.DoubleValue()
+		case pmetric.ExemplarValueTypeEmpty:
+			// Value is unset, use 0.0 as default
+			value = 0.0
+		}
+		values[i] = value
+		spanIDs[i] = traceutil.SpanIDToHexOrEmptyString(ex.SpanID())
+		traceIDs[i] = traceutil.TraceIDToHexOrEmptyString(ex.TraceID())
+	}
+	return filteredAttributes, timestamps, values, spanIDs, traceIDs
 }
 
 func (e *tinybirdExporter) pushLogs(ctx context.Context, ld plog.Logs) error {

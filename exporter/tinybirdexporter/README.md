@@ -29,8 +29,14 @@ exporters:
   tinybird:
     endpoint: https://api.us-east.aws.tinybird.co
     token: ${TINYBIRD_TOKEN}
-    metrics:
-      datasource: metrics
+    metrics_gauge:
+      datasource: "metrics_gauge"
+    metrics_sum:
+      datasource: "metrics_sum"
+    metrics_histogram:
+      datasource: "metrics_histogram"
+    metrics_exponential_histogram:
+      datasource: "metrics_exponential_histogram"
     logs:
       datasource: logs
     traces:
