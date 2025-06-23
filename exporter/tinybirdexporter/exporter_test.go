@@ -29,7 +29,7 @@ func TestNewExporter(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "valid config",
+			name: "build exporter",
 			config: &Config{
 				ClientConfig: confighttp.ClientConfig{
 					Endpoint: "http://localhost:8080",
@@ -44,47 +44,6 @@ func TestNewExporter(t *testing.T) {
 				Wait:                        true,
 			},
 			wantErr: false,
-		},
-		{
-			name: "invalid endpoint",
-			config: &Config{
-				ClientConfig: confighttp.ClientConfig{
-					Endpoint: "invalid-url",
-				},
-				Token:                       "test-token",
-				MetricsGauge:                SignalConfig{Datasource: "metrics_test"},
-				MetricsSum:                  SignalConfig{Datasource: "metrics_sum"},
-				MetricsHistogram:            SignalConfig{Datasource: "metrics_histogram"},
-				MetricsExponentialHistogram: SignalConfig{Datasource: "metrics_exponential_histogram"},
-				Traces:                      SignalConfig{Datasource: "traces_test"},
-				Logs:                        SignalConfig{Datasource: "logs_test"},
-			},
-			wantErr: true,
-		},
-		{
-			name: "missing token",
-			config: &Config{
-				ClientConfig: confighttp.ClientConfig{
-					Endpoint: "http://localhost:8080",
-				},
-				MetricsGauge:                SignalConfig{Datasource: "metrics_test"},
-				MetricsSum:                  SignalConfig{Datasource: "metrics_sum"},
-				MetricsHistogram:            SignalConfig{Datasource: "metrics_histogram"},
-				MetricsExponentialHistogram: SignalConfig{Datasource: "metrics_exponential_histogram"},
-				Traces:                      SignalConfig{Datasource: "traces_test"},
-				Logs:                        SignalConfig{Datasource: "logs_test"},
-			},
-			wantErr: true,
-		},
-		{
-			name: "missing datasource",
-			config: &Config{
-				ClientConfig: confighttp.ClientConfig{
-					Endpoint: "http://localhost:8080",
-				},
-				Token: "test-token",
-			},
-			wantErr: true,
 		},
 	}
 

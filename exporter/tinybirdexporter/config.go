@@ -23,7 +23,7 @@ type SignalConfig struct {
 	_ struct{}
 }
 
-func (cfg SignalConfig) Validate() error {
+func (cfg *SignalConfig) Validate() error {
 	if cfg.Datasource == "" {
 		return fmt.Errorf("datasource cannot be empty")
 	}
