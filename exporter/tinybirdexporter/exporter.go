@@ -71,7 +71,11 @@ func (e *tinybirdExporter) pushTraces(ctx context.Context, td ptrace.Traces) err
 	if err != nil {
 		return consumererror.NewPermanent(err)
 	}
-	return e.export(ctx, e.config.Traces.Datasource, buffer)
+
+	if buffer.Len() > 0 {
+		return e.export(ctx, e.config.Traces.Datasource, buffer)
+	}
+	return nil
 }
 
 func (e *tinybirdExporter) pushMetrics(ctx context.Context, md pmetric.Metrics) error {
@@ -115,7 +119,10 @@ func (e *tinybirdExporter) pushLogs(ctx context.Context, ld plog.Logs) error {
 		return consumererror.NewPermanent(err)
 	}
 
-	return e.export(ctx, e.config.Logs.Datasource, buffer)
+	if buffer.Len() > 0 {
+		return e.export(ctx, e.config.Logs.Datasource, buffer)
+	}
+	return nil
 }
 
 func (e *tinybirdExporter) export(ctx context.Context, dataSource string, buffer *bytes.Buffer) error {

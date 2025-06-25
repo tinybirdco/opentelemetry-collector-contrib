@@ -37,7 +37,7 @@ func TestConvertLogs(t *testing.T) {
 			want: []logSignal{},
 		},
 		{
-			name: "log without attributes",
+			name: "basic log",
 			args: args{
 				ld: func() plog.Logs {
 					ld := plog.NewLogs()
