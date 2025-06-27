@@ -6,7 +6,6 @@ package tinybirdexporter // import "github.com/open-telemetry/opentelemetry-coll
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -65,62 +64,48 @@ func (e *tinybirdExporter) start(ctx context.Context, host component.Host) error
 }
 
 func (e *tinybirdExporter) pushTraces(ctx context.Context, td ptrace.Traces) error {
-	buffer := bytes.NewBuffer(nil)
-	encoder := json.NewEncoder(buffer)
+	encoder := internal.NewChunkedEncoder()
 	err := internal.ConvertTraces(td, encoder)
 	if err != nil {
 		return consumererror.NewPermanent(err)
 	}
 
-	if buffer.Len() > 0 {
-		return e.export(ctx, e.config.Traces.Datasource, buffer)
-	}
-	return nil
+	return e.exportBuffers(ctx, e.config.Traces.Datasource, encoder.Buffers())
 }
 
 func (e *tinybirdExporter) pushMetrics(ctx context.Context, md pmetric.Metrics) error {
-	sumBuffer := bytes.NewBuffer(nil)
-	sumEncoder := json.NewEncoder(sumBuffer)
-
-	gaugeBuffer := bytes.NewBuffer(nil)
-	gaugeEncoder := json.NewEncoder(gaugeBuffer)
-
-	histogramBuffer := bytes.NewBuffer(nil)
-	histogramEncoder := json.NewEncoder(histogramBuffer)
-
-	exponentialHistogramBuffer := bytes.NewBuffer(nil)
-	exponentialHistogramEncoder := json.NewEncoder(exponentialHistogramBuffer)
+	sumEncoder := internal.NewChunkedEncoder()
+	gaugeEncoder := internal.NewChunkedEncoder()
+	histogramEncoder := internal.NewChunkedEncoder()
+	exponentialHistogramEncoder := internal.NewChunkedEncoder()
 
 	err := internal.ConvertMetrics(md, sumEncoder, gaugeEncoder, histogramEncoder, exponentialHistogramEncoder)
 	if err != nil {
 		return consumererror.NewPermanent(err)
 	}
 
-	if sumBuffer.Len() > 0 {
-		err = errors.Join(err, e.export(ctx, e.config.MetricsSum.Datasource, sumBuffer))
-	}
-	if gaugeBuffer.Len() > 0 {
-		err = errors.Join(err, e.export(ctx, e.config.MetricsGauge.Datasource, gaugeBuffer))
-	}
-	if histogramBuffer.Len() > 0 {
-		err = errors.Join(err, e.export(ctx, e.config.MetricsHistogram.Datasource, histogramBuffer))
-	}
-	if exponentialHistogramBuffer.Len() > 0 {
-		err = errors.Join(err, e.export(ctx, e.config.MetricsExponentialHistogram.Datasource, exponentialHistogramBuffer))
-	}
+	err = errors.Join(err, e.exportBuffers(ctx, e.config.MetricsSum.Datasource, sumEncoder.Buffers()))
+	err = errors.Join(err, e.exportBuffers(ctx, e.config.MetricsGauge.Datasource, gaugeEncoder.Buffers()))
+	err = errors.Join(err, e.exportBuffers(ctx, e.config.MetricsHistogram.Datasource, histogramEncoder.Buffers()))
+	err = errors.Join(err, e.exportBuffers(ctx, e.config.MetricsExponentialHistogram.Datasource, exponentialHistogramEncoder.Buffers()))
 	return err
 }
 
 func (e *tinybirdExporter) pushLogs(ctx context.Context, ld plog.Logs) error {
-	buffer := bytes.NewBuffer(nil)
-	encoder := json.NewEncoder(buffer)
+	encoder := internal.NewChunkedEncoder()
 	err := internal.ConvertLogs(ld, encoder)
 	if err != nil {
 		return consumererror.NewPermanent(err)
 	}
 
-	if buffer.Len() > 0 {
-		return e.export(ctx, e.config.Logs.Datasource, buffer)
+	return e.exportBuffers(ctx, e.config.Logs.Datasource, encoder.Buffers())
+}
+
+func (e *tinybirdExporter) exportBuffers(ctx context.Context, dataSource string, buffers []*bytes.Buffer) error {
+	for _, buffer := range buffers {
+		if buffer.Len() > 0 {
+			return e.export(ctx, dataSource, buffer)
+		}
 	}
 	return nil
 }
@@ -162,14 +147,14 @@ func (e *tinybirdExporter) export(ctx context.Context, dataSource string, buffer
 	}
 
 	// Check if retryable
-	isThrottleError := resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode == http.StatusServiceUnavailable
+	isThrottleError := resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode == http.StatusInternalServerError || resp.StatusCode == http.StatusServiceUnavailable
 	if isThrottleError {
 		formattedErr := fmt.Errorf("request throttled")
 
 		// Use Values to check if the header is present, and if present even if it is empty return ThrottleRetry.
 		values := resp.Header.Values(headerRetryAfter)
 		if len(values) == 0 {
-			return formattedErr
+			return exporterhelper.NewThrottleRetry(formattedErr, time.Duration(0))
 		}
 		// The value of Retry-After field can be either an HTTP-date or a number of
 		// seconds to delay after the response is received. See https://datatracker.ietf.org/doc/html/rfc7231#section-7.1.3
