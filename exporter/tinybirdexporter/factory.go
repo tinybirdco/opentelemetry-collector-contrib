@@ -37,8 +37,8 @@ func NewFactory() exporter.Factory {
 func createDefaultConfig() component.Config {
 	clientConfig := confighttp.NewDefaultClientConfig()
 	clientConfig.Timeout = 30 * time.Second
-	// Default to gzip compression
-	clientConfig.Compression = configcompression.TypeGzip
+	// Default to zstd compression
+	clientConfig.Compression = configcompression.TypeZstd
 	// We almost read 0 bytes, so no need to tune ReadBufferSize.
 	clientConfig.WriteBufferSize = 512 * 1024
 
