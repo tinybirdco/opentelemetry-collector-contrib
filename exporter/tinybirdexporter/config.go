@@ -24,7 +24,7 @@ type SignalConfig struct {
 	_ struct{}
 }
 
-type MetricSignalConfig struct {
+type MetricsSignalConfig struct {
 	Gauge                SignalConfig `mapstructure:"gauge"`
 	Sum                  SignalConfig `mapstructure:"sum"`
 	Histogram            SignalConfig `mapstructure:"histogram"`

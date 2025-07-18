@@ -42,11 +42,19 @@ func TestLoadConfig(t *testing.T) {
 				RetryConfig: configretry.NewDefaultBackOffConfig(),
 				QueueConfig: exporterhelper.NewDefaultQueueConfig(),
 				Token:       "test-token",
+<<<<<<< HEAD
 				Metrics: metricSignalConfigs{
 					MetricsGauge:                SignalConfig{Datasource: "gauge"},
 					MetricsSum:                  SignalConfig{Datasource: "sum"},
 					MetricsHistogram:            SignalConfig{Datasource: "histogram"},
 					MetricsExponentialHistogram: SignalConfig{Datasource: "exponential_histogram"},
+=======
+				Metrics: MetricsSignalConfig{
+					Gauge:                SignalConfig{Datasource: "metrics_gauge"},
+					Sum:                  SignalConfig{Datasource: "metrics_sum"},
+					Histogram:            SignalConfig{Datasource: "metrics_histogram"},
+					ExponentialHistogram: SignalConfig{Datasource: "metrics_exponential_histogram"},
+>>>>>>> a8d2f598d9 ([exporter/tinybird] fix typo)
 				},
 				Traces: SignalConfig{Datasource: "traces"},
 				Logs:   SignalConfig{Datasource: "logs"},
@@ -73,11 +81,19 @@ func TestLoadConfig(t *testing.T) {
 					return cfg
 				}(),
 				Token: "test-token",
+<<<<<<< HEAD
 				Metrics: metricSignalConfigs{
 					MetricsGauge:                SignalConfig{Datasource: "gauge"},
 					MetricsSum:                  SignalConfig{Datasource: "sum"},
 					MetricsHistogram:            SignalConfig{Datasource: "histogram"},
 					MetricsExponentialHistogram: SignalConfig{Datasource: "exponential_histogram"},
+=======
+				Metrics: MetricsSignalConfig{
+					Gauge:                SignalConfig{Datasource: "metrics_gauge"},
+					Sum:                  SignalConfig{Datasource: "metrics_sum"},
+					Histogram:            SignalConfig{Datasource: "metrics_histogram"},
+					ExponentialHistogram: SignalConfig{Datasource: "metrics_exponential_histogram"},
+>>>>>>> a8d2f598d9 ([exporter/tinybird] fix typo)
 				},
 				Traces: SignalConfig{Datasource: "traces"},
 				Logs:   SignalConfig{Datasource: "logs"},
