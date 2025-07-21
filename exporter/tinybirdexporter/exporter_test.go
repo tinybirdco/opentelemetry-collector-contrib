@@ -35,7 +35,7 @@ func TestNewExporter(t *testing.T) {
 					Endpoint: "http://localhost:8080",
 				},
 				Token: "test-token",
-				Metrics: metricSignalConfigs{
+				Metrics: metricSignalConfigGroup{
 					MetricsGauge:                SignalConfig{Datasource: "metrics_gauge"},
 					MetricsSum:                  SignalConfig{Datasource: "metrics_sum"},
 					MetricsHistogram:            SignalConfig{Datasource: "metrics_histogram"},
@@ -218,7 +218,7 @@ func TestExportMetrics(t *testing.T) {
 				config: Config{
 					ClientConfig: confighttp.ClientConfig{},
 					Token:        "test-token",
-					Metrics: metricSignalConfigs{
+					Metrics: metricSignalConfigGroup{
 						MetricsGauge: SignalConfig{Datasource: "metrics_gauge"},
 						MetricsSum:   SignalConfig{Datasource: "metrics_sum"},
 					},
@@ -275,7 +275,7 @@ func TestExportMetrics(t *testing.T) {
 				config: Config{
 					ClientConfig: confighttp.ClientConfig{},
 					Token:        "test-token",
-					Metrics: metricSignalConfigs{
+					Metrics: metricSignalConfigGroup{
 						MetricsGauge: SignalConfig{Datasource: "metrics_gauge"},
 						MetricsSum:   SignalConfig{Datasource: "metrics_sum"},
 					},
@@ -326,7 +326,7 @@ func TestExportMetrics(t *testing.T) {
 				config: Config{
 					ClientConfig: confighttp.ClientConfig{},
 					Token:        "test-token",
-					Metrics: metricSignalConfigs{
+					Metrics: metricSignalConfigGroup{
 						MetricsGauge: SignalConfig{Datasource: "metrics_gauge"},
 						MetricsSum:   SignalConfig{Datasource: "metrics_sum"},
 					},
@@ -381,7 +381,7 @@ func TestExportMetrics(t *testing.T) {
 				config: Config{
 					ClientConfig: confighttp.ClientConfig{},
 					Token:        "test-token",
-					Metrics: metricSignalConfigs{
+					Metrics: metricSignalConfigGroup{
 						MetricsHistogram: SignalConfig{Datasource: "metrics_histogram"},
 					},
 					Wait: false,
@@ -439,7 +439,7 @@ func TestExportMetrics(t *testing.T) {
 				config: Config{
 					ClientConfig: confighttp.ClientConfig{},
 					Token:        "test-token",
-					Metrics: metricSignalConfigs{
+					Metrics: metricSignalConfigGroup{
 						MetricsExponentialHistogram: SignalConfig{Datasource: "metrics_exponential_histogram"},
 					},
 					Wait: false,
@@ -653,7 +653,7 @@ func TestExportErrorHandling(t *testing.T) {
 					Endpoint: server.URL,
 				},
 				Token: "test-token",
-				Metrics: metricSignalConfigs{
+				Metrics: metricSignalConfigGroup{
 					MetricsGauge:                SignalConfig{Datasource: "metrics_gauge"},
 					MetricsSum:                  SignalConfig{Datasource: "metrics_sum"},
 					MetricsHistogram:            SignalConfig{Datasource: "metrics_histogram"},

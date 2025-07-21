@@ -24,15 +24,6 @@ type SignalConfig struct {
 	_ struct{}
 }
 
-type MetricsSignalConfig struct {
-	Gauge                SignalConfig `mapstructure:"gauge"`
-	Sum                  SignalConfig `mapstructure:"sum"`
-	Histogram            SignalConfig `mapstructure:"histogram"`
-	ExponentialHistogram SignalConfig `mapstructure:"exponential_histogram"`
-
-	_ struct{}
-}
-
 func (cfg SignalConfig) Validate() error {
 	if cfg.Datasource == "" {
 		return errors.New("datasource cannot be empty")
@@ -50,15 +41,15 @@ type Config struct {
 	QueueConfig  exporterhelper.QueueBatchConfig `mapstructure:"sending_queue"`
 
 	// Tinybird API token.
-	Token   configopaque.String `mapstructure:"token"`
-	Metrics metricSignalConfigs `mapstructure:"metrics"`
-	Traces  SignalConfig        `mapstructure:"traces"`
-	Logs    SignalConfig        `mapstructure:"logs"`
+	Token   configopaque.String     `mapstructure:"token"`
+	Metrics metricSignalConfigGroup `mapstructure:"metrics"`
+	Traces  SignalConfig            `mapstructure:"traces"`
+	Logs    SignalConfig            `mapstructure:"logs"`
 	// Wait for data to be ingested before returning a response.
 	Wait bool `mapstructure:"wait"`
 }
 
-type metricSignalConfigs struct {
+type metricSignalConfigGroup struct {
 	MetricsGauge                SignalConfig `mapstructure:"gauge"`
 	MetricsSum                  SignalConfig `mapstructure:"sum"`
 	MetricsHistogram            SignalConfig `mapstructure:"histogram"`

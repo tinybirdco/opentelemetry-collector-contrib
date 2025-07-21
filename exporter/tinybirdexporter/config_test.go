@@ -42,7 +42,7 @@ func TestLoadConfig(t *testing.T) {
 				RetryConfig: configretry.NewDefaultBackOffConfig(),
 				QueueConfig: exporterhelper.NewDefaultQueueConfig(),
 				Token:       "test-token",
-				Metrics: metricSignalConfigs{
+				Metrics: metricSignalConfigGroup{
 					MetricsGauge:                SignalConfig{Datasource: "gauge"},
 					MetricsSum:                  SignalConfig{Datasource: "sum"},
 					MetricsHistogram:            SignalConfig{Datasource: "histogram"},
@@ -73,7 +73,7 @@ func TestLoadConfig(t *testing.T) {
 					return cfg
 				}(),
 				Token: "test-token",
-				Metrics: metricSignalConfigs{
+				Metrics: metricSignalConfigGroup{
 					MetricsGauge:                SignalConfig{Datasource: "gauge"},
 					MetricsSum:                  SignalConfig{Datasource: "sum"},
 					MetricsHistogram:            SignalConfig{Datasource: "histogram"},
