@@ -12,7 +12,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/traceutil"
 )
 
-type DataPoint interface {
+type dataPoint interface {
 	StartTimestamp() pcommon.Timestamp
 	Timestamp() pcommon.Timestamp
 	Flags() pmetric.DataPointFlags
@@ -51,7 +51,7 @@ func newBaseMetricSignal(
 	scopeSchemaURL string,
 	scopeAttributes map[string]string,
 	metric pmetric.Metric,
-	dataPoint DataPoint,
+	dataPoint dataPoint,
 ) baseMetricSignal {
 	// Convert exemplars
 	exemplars := dataPoint.Exemplars()
